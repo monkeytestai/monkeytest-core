@@ -1,0 +1,156 @@
+# CLI reference
+
+The `monkeytest` binary ships with the `@mtai/monkeytest-core` package.
+
+```bash
+npm install -g @mtai/monkeytest-core
+# or
+npx @mtai/monkeytest-core <command> ...
+```
+
+All commands write to `./.monkeytest/` by default (override with `--dir`).
+
+## Commands
+
+### `monkeytest init`
+
+Scaffold a `.monkeytest/` directory with `config.json`, `runs/`, `shots/`, and a sensible `.gitignore`. Idempotent — won't overwrite an existing config.
+
+```bash
+monkeytest init
+# ✓ Initialised .monkeytest/
+#   Tracked:    config.json, plan.json (after first run)
+#   Ignored:    shots/, runs/
+```
+
+### `monkeytest explore <url>`
+
+Crawl the site, summarise pages with the LLM, and generate a `TestPlan`. Writes `plan.json` and `sitemap.json`. **Does not** execute any flows.
+
+```bash
+monkeytest explore https://example.com --max 12 --flows 8
+```
+
+Useful when you want to inspect the plan before running it (or commit it before a CI rerun).
+
+### `monkeytest run <url>`
+
+Full pipeline: explore + plan + run + triage. Writes:
+
+- `plan.json` — the generated `TestPlan`
+- `runs/<timestamp>.json` — the `RunResult` (flows, bugs, stats)
+- `shots/page-*.png` — explorer screenshots
+- `shots/flow-*-step-*-*.png` — per-step screenshots
+- `shots/flow-*.webm` — per-flow video recordings
+
+Exits **`1`** if any non-`minor` bug is found, so CI can gate on it.
+
+```bash
+monkeytest run https://example.com --quality balanced
+```
+
+### `monkeytest rerun [<runId>]`
+
+Re-execute the **same stored plan** (skip explore + plan). The cheap, fast, deterministic path for verifying that a fix landed.
+
+```bash
+monkeytest rerun                      # uses .monkeytest/plan.json
+monkeytest rerun 2026-05-02T10-15-00Z # use the plan stored alongside this run
+```
+
+Exits **`1`** if any blocking bug is still failing.
+
+### `monkeytest diff <runA> <runB>`
+
+Set diff over bug fingerprints. `<runA>` / `<runB>` are stored run ids, or the shortcuts `latest` and `prev`.
+
+```bash
+monkeytest diff prev latest
+#
+# Diff 2026-05-02T08-00-00Z → 2026-05-02T13-30-00Z
+#   1 new, 2 fixed, 1 still broken, 0 regressed (net -1)
+#
+#   New bugs (1)
+#     [critical] Checkout returns 500
+#            fingerprint: fp-checkout-500
+#   Fixed bugs (2)
+#     [major]    Login button does not respond
+#     [minor]    Footer typo
+#   Still broken (1)
+#     [major]    Search slow
+```
+
+Exits **`1`** if there are new bugs **or** any severity escalation.
+
+### `monkeytest report [<runId>]`
+
+Pretty-print a stored run — flows, bugs, evidence paths.
+
+```bash
+monkeytest report          # latest
+monkeytest report --json   # machine-readable
+```
+
+### `monkeytest help [<command>]`
+
+Top-level or per-command help.
+
+### `monkeytest version`
+
+Print the engine version.
+
+## Common flags
+
+| Flag                    | Default        | What                                                                  |
+| ----------------------- | -------------- | --------------------------------------------------------------------- |
+| `-d, --dir <path>`      | `.monkeytest`  | Working directory                                                     |
+| `--provider <id>`       | auto-detect    | `openai` \| `gemini` \| `anthropic` \| `mistral` \| `groq` \| `openai_compatible` |
+| `--model <id>`          | provider best  | Specific model id                                                     |
+| `--api-key <key>`       | env var        | Override the env API key                                              |
+| `--base-url <url>`      | —              | Required for `openai_compatible` (Ollama, vLLM, OpenRouter, …)        |
+| `--quality <preset>`    | `balanced`     | `cheap` \| `balanced` \| `smart` (used by `autoLLMConfig`)            |
+| `-m, --max <n>`         | `8`            | Max pages to crawl (`run`, `explore`)                                 |
+| `--flows <n>`           | `6`            | Max flows to plan                                                     |
+| `--no-headless`         | headless       | Show the browser window                                               |
+| `--label <text>`        | —              | Free-form label saved on the plan/run                                 |
+| `--json`                | text           | Machine-readable output (`run`, `diff`, `report`)                     |
+
+## Environment variables
+
+| Variable                          | Used for                                          |
+| --------------------------------- | ------------------------------------------------- |
+| `OPENAI_API_KEY`                  | OpenAI provider                                   |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google Generative AI                            |
+| `ANTHROPIC_API_KEY`               | Anthropic Claude                                  |
+| `MISTRAL_API_KEY`                 | Mistral                                           |
+| `GROQ_API_KEY`                    | Groq                                              |
+| `OPENAI_COMPATIBLE_BASE_URL`      | Self-hosted (Ollama, vLLM, LM Studio, OpenRouter) |
+| `OPENAI_COMPATIBLE_API_KEY`       | Optional key for the OpenAI-compatible endpoint   |
+| `MONKEYTEST_DEBUG`                | Print stack traces on failure                     |
+
+## Exit codes
+
+| Code | Meaning                                         |
+| ---- | ----------------------------------------------- |
+| `0`  | Success / no blocking bugs                      |
+| `1`  | Blocking bugs found (or `diff` regressed)       |
+| `2`  | Bad arguments / setup error (no API key, etc.)  |
+| `3`  | Engine / runtime error                          |
+
+## On-disk format
+
+```
+.monkeytest/
+├── config.json                     ← hand-tuned config (tracked)
+├── plan.json                       ← latest plan (tracked, version 1)
+├── sitemap.json                    ← latest crawl summary
+├── runs/
+│   ├── 2026-05-02T08-00-00Z.json  ← one stored run per file
+│   └── 2026-05-02T13-30-00Z.json
+└── shots/
+    ├── page-*.png                  ← explorer screenshots
+    ├── flow-*-step-*-*.png         ← per-step screenshots
+    └── flow-*.webm                 ← per-flow recordings
+```
+
+`plan.json` and run JSONs both carry a `schema` field (currently `1`) so future migrations have a clear upgrade path. Files written by a newer schema will be rejected with a clear error rather than silently misread.

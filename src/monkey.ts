@@ -43,6 +43,18 @@ export interface ExecuteOptions extends ExploreAndPlanOptions {
   run: RunnerOptions;
 }
 
+/**
+ * Options for the `runFromPlan` re-run path. Skips explore + plan, executes
+ * an existing TestPlan and triages the result. This is the cheap, fast path
+ * for verifying that previously-found bugs are now fixed.
+ */
+export interface ExecuteFromPlanOptions {
+  /** Required runner config; same shape as `executeAndTriage.run`. */
+  run: RunnerOptions;
+  /** Optional live event bus. Receives runner + triager events only. */
+  events?: EventBus;
+}
+
 export class Monkey {
 
   private readonly explorerLLM: LLM;
@@ -178,6 +190,82 @@ export class Monkey {
     }
 
     return { siteMap, plan: testPlan, run };
+
+  }
+
+  /**
+   * Re-run a previously-stored `TestPlan` against the same (or a new) URL,
+   * skipping the explorer and planner phases entirely.
+   *
+   * This is the **bug-fix verification loop**: you ran `executeAndTriage`
+   * yesterday, fixed the reported bugs, and want to know if the same flows
+   * now pass. By re-using the stored plan you get:
+   *
+   *   - **Determinism** — exact same flows, exact same steps, no LLM-driven
+   *     plan drift between runs.
+   *   - **Speed + cost** — no explorer LLM calls, no planner call, just
+   *     runner + triager.
+   *   - **Comparability** — pair the result with `diffRuns(prev, current)`
+   *     to see new / fixed / regressed bugs by stable fingerprint.
+   *
+   * The plan's `startUrl` is honoured by default. If you want to re-run the
+   * same plan against a different environment (e.g. staging vs prod), edit
+   * `plan.flows[].startUrl` before passing it in.
+   */
+  async runFromPlan(
+    testPlan: TestPlan,
+    opts: ExecuteFromPlanOptions
+  ): Promise<{ plan: TestPlan; run: RunResult }> {
+
+    const events = opts.events ?? noopBus();
+
+    if (testPlan.flows.length === 0){
+      events.emit({
+        phase: 'planner', type: 'plan.skipped',
+        message: 'runFromPlan called with an empty plan — nothing to execute.',
+      });
+      return { plan: testPlan, run: emptyRun(testPlan.startUrl) };
+    }
+
+    let rawRun: RunResult;
+    try {
+      events.emit({
+        phase: 'runner', type: 'run.start',
+        message: `Re-running ${testPlan.flows.length} stored flow${testPlan.flows.length === 1 ? '' : 's'}…`,
+        data: { flows: testPlan.flows.length, mode: 'rerun' },
+      });
+      rawRun = await runPlan(testPlan, this.runnerLLM, { ...opts.run, events });
+      events.emit({
+        phase: 'runner', type: 'run.complete',
+        message: `Re-run complete: ${rawRun.stats.flowsPassed}/${rawRun.stats.flowsTotal} flows passed.`,
+        data: rawRun.stats,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      events.emit({
+        phase: 'runner', type: 'engine.error',
+        message: `Re-run failed: ${truncate(msg, 160)}`,
+        data: { error: msg },
+      });
+      return { plan: testPlan, run: emptyRun(testPlan.startUrl) };
+    }
+
+    let run: RunResult;
+    if (this.triagerLLM){
+      run = await triagePolished(rawRun, { llm: this.triagerLLM, events });
+    } else {
+      events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
+      run = triage(rawRun);
+      events.emit({
+        phase: 'triager', type: 'triage.complete',
+        message: run.bugs.length === 0
+          ? 'Triage complete: no confirmed bugs.'
+          : `Triage complete: ${run.bugs.length} bug${run.bugs.length === 1 ? '' : 's'} reported.`,
+        data: { bugs: run.bugs.length, stats: run.stats },
+      });
+    }
+
+    return { plan: testPlan, run };
 
   }
 

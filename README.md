@@ -27,28 +27,49 @@
 
 ---
 
-Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by **looking** at your app first.
+Most "AI testing" tools stop at *finding* bugs. MonkeyTest Core is built around the **full loop**:
 
-It opens a real browser, crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and hands you back a structured report with screenshots, deduplicated bug fingerprints, and a live event stream you can pipe into your own UI.
+> **find → fix → re-run the same plan → diff what changed.**
+
+Point it at a URL. It crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and writes a stable, versioned `plan.json` you can commit to git. Tomorrow, after you ship a fix, **`monkeytest rerun`** re-executes the *exact same* plan — no LLM cost for re-planning, no plan drift between runs — and **`monkeytest diff`** tells you what's new, what's fixed, what regressed.
+
+```bash
+monkeytest run https://example.com   # first run: explore + plan + execute, exit 1 if bugs
+# ...you ship a fix...
+monkeytest rerun                     # re-runs the same plan, exit 1 if any blocking bug remains
+monkeytest diff prev latest          # 2 fixed, 0 new, 1 still broken, 0 regressed (net -2)
+```
+
+Or programmatically — same primitives:
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig, savePlan, loadPlan, diffRuns, saveRun } from '@mtai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
-const { run } = await monkey.executeAndTriage('https://example.com', {
-  explore: { maxPages: 8, screenshotsDir: '.monkeytest/shots' },
-  plan:    { maxFlows: 4 },
-  run:     { screenshotsDir: '.monkeytest/shots' },
+// Day 1 — discover
+const { plan, run: a } = await monkey.executeAndTriage('https://example.com', {
+  run: { screenshotsDir: '.monkeytest/shots' },
 });
+savePlan(plan, { dir: '.monkeytest' });
+saveRun(a, { dir: '.monkeytest' });
 
-console.log(`${run.bugs.length} bug(s) across ${run.stats.flowsTotal} flows`);
+// Day 2 — verify after fixing
+const stored = loadPlan('.monkeytest');
+const { run: b } = await monkey.runFromPlan(stored.plan, {
+  run: { screenshotsDir: '.monkeytest/shots' },
+});
+saveRun(b, { dir: '.monkeytest' });
+
+const diff = diffRuns(a, b);
+console.log(`${diff.stats.fixed} fixed, ${diff.stats.regressed} regressed`);
 ```
 
-That's it. No fixtures, no page objects, no recorders.
+No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story.
 
 ## Why MonkeyTest Core?
 
+- **Closed loop, not just discovery.** Stable JSON plans + bug fingerprints + a real `rerun` and `diff` — built in, not bolted on.
 - **Drop-in, not framework.** One npm package, one constructor. No DSL.
 - **Bring your own LLM.** OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter). Pick a different model **per phase**.
 - **Real evidence.** Per-step screenshots, optional WebM video, console + network failures, and bug reports with stable fingerprints across runs.
@@ -118,6 +139,8 @@ for (const bug of run.bugs.filter(b => b.severity !== 'minor')){
 Everything lives at **[docs.monkeytest.ai](https://docs.monkeytest.ai)**:
 
 - [Quick start](https://docs.monkeytest.ai/guide/quick-start) — first run in 60 seconds
+- [The bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) — explore once, run repeatedly, diff
+- [CLI reference](https://docs.monkeytest.ai/reference/cli) — every subcommand and flag
 - [How it works](https://docs.monkeytest.ai/guide/architecture) — the four phases
 - [LLM providers](https://docs.monkeytest.ai/guide/llm-providers) — model picks per provider
 - [Cost & depth](https://docs.monkeytest.ai/guide/cost-and-depth) — what each run costs

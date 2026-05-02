@@ -5,6 +5,48 @@ All notable changes to **MonkeyTest Core** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-05
+
+The bug-finding loop release. The CLI is now a real product surface with
+`init`, `run`, `rerun`, `diff`, and `report` subcommands; the engine ships
+the primitives those commands stand on (`Monkey.runFromPlan`, `diffRuns`,
+plus `savePlan`/`loadPlan`/`saveRun`/`loadRun`).
+
+### Added
+
+- `Monkey.runFromPlan(plan, opts)` — re-execute a stored `TestPlan`
+  without re-crawling or re-planning. The deterministic, cheap path for
+  verifying that a fix actually landed.
+- `diffRuns(prev, current)` — set diff over `BugReport.fingerprint`s plus
+  a severity-rank check. Returns `{ newBugs, fixedBugs, persistingBugs,
+  regressedBugs, stats }`. `summariseDiff()` for one-line CLI output.
+- Persistence module: `savePlan` / `loadPlan` / `saveRun` / `loadRun` /
+  `listRuns` with versioned `schema` field. Stable on-disk layout under
+  `.monkeytest/{plan.json, runs/<id>.json, shots/}`.
+- New CLI subcommands:
+  - `monkeytest init` — scaffold `.monkeytest/`.
+  - `monkeytest run <url>` — full pipeline + persisted plan + run.
+  - `monkeytest rerun [<runId>]` — re-execute the same stored plan.
+  - `monkeytest diff <runA> <runB>` — bug-fingerprint diff with shortcuts
+    `latest`/`prev`. Exits `1` on new bugs or severity escalations.
+  - `monkeytest report [<runId>]` — pretty-print a stored run.
+- Consistent CLI exit codes (`0` ok, `1` bugs/regressions, `2` bad args,
+  `3` engine error) so CI can gate on results.
+
+### Changed
+
+- CLI rewritten as a subcommand router with per-command help; old
+  single-command entrypoint deprecated but `explore` still works.
+- Plan / run JSON gain a `schema: 1` field for forwards-compatibility.
+
+### Docs
+
+- New guide: **The bug-finding loop** — explains the find-fix-rerun-diff
+  cycle and the SaaS variant.
+- New reference page: **CLI** with every subcommand, flag, env var, exit
+  code, and the on-disk layout.
+- Homepage and README updated to lead with the loop story.
+
 ## [0.3.0] — 2026-05
 
 First public npm release.

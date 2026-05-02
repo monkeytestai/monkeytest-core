@@ -10,7 +10,26 @@ export type {
   MonkeyConfig,
   ExploreAndPlanOptions,
   ExecuteOptions,
+  ExecuteFromPlanOptions,
 } from './monkey.js';
+
+export { diffRuns, summariseDiff } from './diff/index.js';
+export type {
+  RunDiff,
+  BugDiffEntry,
+  RunDiffStatus,
+} from './diff/index.js';
+
+export {
+  savePlan,
+  loadPlan,
+  saveRun,
+  loadRun,
+  listRuns,
+  PLAN_FILE_SCHEMA,
+  RUN_FILE_SCHEMA,
+} from './persistence/index.js';
+export type { StoredPlan, StoredRun } from './persistence/index.js';
 
 export { explore } from './explorer/index.js';
 export type { ExploreOptions } from './explorer/index.js';

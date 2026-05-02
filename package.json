@@ -1,0 +1,72 @@
+{
+  "name": "@mtai/monkeytest-core",
+  "version": "0.2.0",
+  "description": "Open-source AI exploratory testing engine: Playwright + LLM planning + live events. AGPL-3.0. Powers monkeytest.ai.",
+  "license": "AGPL-3.0-only",
+  "author": "MonkeyTest",
+  "homepage": "https://docs.monkeytest.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monkeytest-ai/monkeytest-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/monkeytest-ai/monkeytest-core/issues"
+  },
+  "keywords": [
+    "monkeytest",
+    "playwright",
+    "testing",
+    "qa",
+    "e2e",
+    "exploratory-testing",
+    "llm",
+    "openai",
+    "gemini",
+    "browser-automation",
+    "agpl",
+    "typescript"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "monkeytest": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "explore": "tsx src/cli.ts explore",
+    "clean": "rm -rf dist .tsbuildinfo",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^4.77.0",
+    "playwright": "^1.50.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.33"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

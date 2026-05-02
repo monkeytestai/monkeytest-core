@@ -1,0 +1,104 @@
+{
+  "startUrl": "https://irfanahmad.in/",
+  "siteType": "blog",
+  "flows": [
+    {
+      "id": "homepage-navigation",
+      "name": "Homepage Navigation Links",
+      "description": "Verifies that primary navigation links on the homepage are functional and lead to the correct sections.",
+      "kind": "happy_path",
+      "startUrl": "https://irfanahmad.in/",
+      "steps": [
+        {
+          "action": "click link 'Blogs'"
+        },
+        {
+          "action": "wait for url to contain '/blog'"
+        },
+        {
+          "action": "click link 'About'"
+        },
+        {
+          "action": "wait for url to contain '/about'"
+        }
+      ],
+      "expectation": "The user is successfully navigated to the Blogs and About pages when clicking the respective navigation links.",
+      "severityIfFails": "critical"
+    },
+    {
+      "id": "search-functionality",
+      "name": "Search Functionality",
+      "description": "Tests the search input field to ensure it accepts input and triggers a search action.",
+      "kind": "happy_path",
+      "startUrl": "https://irfanahmad.in/",
+      "steps": [
+        {
+          "action": "fill input 'Type to search' with 'Cypress'"
+        },
+        {
+          "action": "press 'Enter'"
+        },
+        {
+          "action": "wait for search results container to be visible"
+        }
+      ],
+      "expectation": "The search functionality returns relevant results or a results page when a valid query is entered.",
+      "severityIfFails": "major"
+    },
+    {
+      "id": "newsletter-subscription-form",
+      "name": "Newsletter Subscription Form",
+      "description": "Checks that the newsletter subscription form is present and interactive.",
+      "kind": "happy_path",
+      "startUrl": "https://irfanahmad.in/",
+      "steps": [
+        {
+          "action": "click input 'Newsletter subscription'"
+        },
+        {
+          "action": "fill input 'Newsletter subscription' with 'test@example.com'"
+        },
+        {
+          "action": "click button 'Subscribe'"
+        }
+      ],
+      "expectation": "The subscription form accepts an email address and triggers a submission action without crashing.",
+      "severityIfFails": "major"
+    },
+    {
+      "id": "blog-post-access",
+      "name": "Access Blog Post",
+      "description": "Verifies that a user can click on a blog post title and load the full article page.",
+      "kind": "happy_path",
+      "startUrl": "https://irfanahmad.in/",
+      "steps": [
+        {
+          "action": "click link 'Comprehensive Logging and Reporting in Cypress (Part 3)'"
+        },
+        {
+          "action": "wait for element 'article' to be visible"
+        }
+      ],
+      "expectation": "The blog post content loads successfully after clicking the post title.",
+      "severityIfFails": "critical"
+    },
+    {
+      "id": "contact-page-load",
+      "name": "Contact Page Accessibility",
+      "description": "Ensures the contact page or link is reachable from the main navigation.",
+      "kind": "happy_path",
+      "startUrl": "https://irfanahmad.in/",
+      "steps": [
+        {
+          "action": "click link 'Contact'"
+        },
+        {
+          "action": "wait for page to load"
+        }
+      ],
+      "expectation": "The contact page or contact section is rendered correctly without 404 errors.",
+      "severityIfFails": "major"
+    }
+  ],
+  "notes": "The site appears to be a static-generated blog; flows focus on navigation and basic interactivity. No auth-gated flows were identified as the site is public-facing."
+}

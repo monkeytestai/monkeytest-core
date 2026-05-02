@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MonkeyTest Cloud (hosted SaaS)
+    url: https://monkeytest.ai
+    about: Run tests without self-hosting the engine — best for teams and non-developers.
+  - name: Documentation
+    url: https://docs.monkeytest.ai
+    about: Installation, API reference, AGPL FAQ, and architecture.

@@ -1,0 +1,12 @@
+MonkeyTest Core (monkeytest-core)
+Copyright (C) 2026 MonkeyTest and contributors.
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+See the LICENSE file for the full license text.
+
+Third-party notices for bundled dependencies appear in package-lock.json
+and each package's own LICENSE file where applicable.

@@ -1,0 +1,283 @@
+{
+  "startUrl": "https://irfanahmad.in/",
+  "siteType": "blog",
+  "summary": "This is a personal professional portfolio and blog site belonging to Irfan Ahmad, an engineering leader specializing in software quality and test automation. The site serves as a platform for him to share industry insights, technical expertise, and critical perspectives on software engineering, primarily targeting fellow developers, quality assurance professionals, and engineering managers.",
+  "pages": [
+    {
+      "url": "https://irfanahmad.in/",
+      "title": "Irfan Ahmad | Engineering Leader - Software Quality | Software critic",
+      "summary": "This is a personal professional portfolio and blog site where Irfan Ahmad shares insights on software quality, test automation, and engineering leadership.",
+      "interactive": [
+        {
+          "kind": "form",
+          "label": "Newsletter subscription",
+          "selector": "form[action='https://irfanahmad.in/']"
+        },
+        {
+          "kind": "form",
+          "label": "Search",
+          "selector": "form[action='https://irfanahmad.in/']"
+        },
+        {
+          "kind": "button",
+          "label": "Subscribe"
+        },
+        {
+          "kind": "link",
+          "label": "About"
+        },
+        {
+          "kind": "link",
+          "label": "Projects"
+        },
+        {
+          "kind": "link",
+          "label": "Blogs"
+        },
+        {
+          "kind": "link",
+          "label": "Contact"
+        },
+        {
+          "kind": "link",
+          "label": "View All Posts"
+        }
+      ],
+      "outboundLinks": [
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/about/",
+        "https://irfanahmad.in/projects/",
+        "https://irfanahmad.in/tags/",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/monthly-archive/",
+        "https://irfanahmad.in/yearly-archive/",
+        "https://irfanahmad.in/contact/",
+        "https://irfanahmad.in/tag/tech-leadership",
+        "https://irfanahmad.in/tag/test-automation",
+        "https://irfanahmad.in/tag/tech-talks",
+        "https://irfanahmad.in/blog",
+        "https://irfanahmad.in/cypress-reporting-logging/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/tag/reporting",
+        "https://irfanahmad.in/cypress-page-objects/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/cypress-basics-setup/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/tag/tech-review",
+        "https://irfanahmad.in/free-website-checker/",
+        "https://irfanahmad.in/tag/web",
+        "https://irfanahmad.in/block-chatgpt/",
+        "https://irfanahmad.in/tag/web",
+        "https://irfanahmad.in/cognitive-fitness/",
+        "https://irfanahmad.in/tag/book-review",
+        "https://irfanahmad.in/blog",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/about/",
+        "https://irfanahmad.in/projects/",
+        "https://irfanahmad.in/opensource/",
+        "https://irfanahmad.in/error-page/",
+        "https://irfanahmad.in/tags/",
+        "https://irfanahmad.in/authors/",
+        "https://irfanahmad.in/monthly-archive/",
+        "https://irfanahmad.in/yearly-archive/",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/tag/food/",
+        "https://irfanahmad.in/tag/test-automation/",
+        "https://irfanahmad.in/tag/tech-conference/",
+        "https://irfanahmad.in/tag/tech-events/",
+        "https://irfanahmad.in/tag/book-review/",
+        "https://irfanahmad.in/tag/testing/",
+        "https://irfanahmad.in/tag/javascript/",
+        "https://irfanahmad.in/tag/cypress/",
+        "https://irfanahmad.in/tag/automation/",
+        "https://irfanahmad.in/tag/web/",
+        "https://irfanahmad.in/tag/tech-review/",
+        "https://irfanahmad.in/tag/year-review/",
+        "https://irfanahmad.in/tag/reporting/"
+      ],
+      "authGated": false
+    },
+    {
+      "url": "https://irfanahmad.in/#",
+      "title": "Irfan Ahmad | Engineering Leader - Software Quality | Software critic",
+      "summary": "This is a professional portfolio and blog site where Irfan Ahmad shares his expertise in engineering leadership, test automation, and software quality.",
+      "interactive": [
+        {
+          "kind": "form",
+          "label": "Newsletter subscription",
+          "selector": "form[action='https://irfanahmad.in/#']"
+        },
+        {
+          "kind": "input",
+          "label": "Type to search",
+          "selector": "input[type='search']"
+        },
+        {
+          "kind": "button",
+          "label": "Subscribe"
+        },
+        {
+          "kind": "link",
+          "label": "View All Posts"
+        },
+        {
+          "kind": "menu",
+          "label": "Navigation menu",
+          "selector": "nav"
+        },
+        {
+          "kind": "link",
+          "label": "Comprehensive Logging and Reporting in Cypress (Part 3)"
+        },
+        {
+          "kind": "link",
+          "label": "Archive"
+        },
+        {
+          "kind": "link",
+          "label": "Connect"
+        }
+      ],
+      "outboundLinks": [
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/about/",
+        "https://irfanahmad.in/projects/",
+        "https://irfanahmad.in/tags/",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/monthly-archive/",
+        "https://irfanahmad.in/yearly-archive/",
+        "https://irfanahmad.in/contact/",
+        "https://irfanahmad.in/tag/tech-leadership",
+        "https://irfanahmad.in/tag/test-automation",
+        "https://irfanahmad.in/tag/tech-talks",
+        "https://irfanahmad.in/blog",
+        "https://irfanahmad.in/cypress-reporting-logging/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/tag/reporting",
+        "https://irfanahmad.in/cypress-page-objects/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/cypress-basics-setup/",
+        "https://irfanahmad.in/tag/testing",
+        "https://irfanahmad.in/tag/javascript",
+        "https://irfanahmad.in/tag/cypress",
+        "https://irfanahmad.in/tag/automation",
+        "https://irfanahmad.in/tag/tech-review",
+        "https://irfanahmad.in/free-website-checker/",
+        "https://irfanahmad.in/tag/web",
+        "https://irfanahmad.in/block-chatgpt/",
+        "https://irfanahmad.in/tag/web",
+        "https://irfanahmad.in/cognitive-fitness/",
+        "https://irfanahmad.in/tag/book-review",
+        "https://irfanahmad.in/blog",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/about/",
+        "https://irfanahmad.in/projects/",
+        "https://irfanahmad.in/opensource/",
+        "https://irfanahmad.in/error-page/",
+        "https://irfanahmad.in/tags/",
+        "https://irfanahmad.in/authors/",
+        "https://irfanahmad.in/monthly-archive/",
+        "https://irfanahmad.in/yearly-archive/",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/#",
+        "https://irfanahmad.in/",
+        "https://irfanahmad.in/tag/food/",
+        "https://irfanahmad.in/tag/test-automation/",
+        "https://irfanahmad.in/tag/tech-conference/",
+        "https://irfanahmad.in/tag/tech-events/",
+        "https://irfanahmad.in/tag/book-review/",
+        "https://irfanahmad.in/tag/testing/",
+        "https://irfanahmad.in/tag/javascript/",
+        "https://irfanahmad.in/tag/cypress/",
+        "https://irfanahmad.in/tag/automation/",
+        "https://irfanahmad.in/tag/web/",
+        "https://irfanahmad.in/tag/tech-review/",
+        "https://irfanahmad.in/tag/year-review/",
+        "https://irfanahmad.in/tag/reporting/"
+      ],
+      "authGated": false
+    }
+  ],
+  "pendingUrls": [
+    "https://irfanahmad.in/monthly-archive/",
+    "https://irfanahmad.in/yearly-archive/",
+    "https://irfanahmad.in/contact/",
+    "https://irfanahmad.in/tag/tech-leadership",
+    "https://irfanahmad.in/tag/test-automation",
+    "https://irfanahmad.in/tag/tech-talks",
+    "https://irfanahmad.in/blog",
+    "https://irfanahmad.in/cypress-reporting-logging/",
+    "https://irfanahmad.in/tag/testing",
+    "https://irfanahmad.in/tag/javascript",
+    "https://irfanahmad.in/tag/cypress",
+    "https://irfanahmad.in/tag/automation",
+    "https://irfanahmad.in/tag/reporting",
+    "https://irfanahmad.in/cypress-page-objects/",
+    "https://irfanahmad.in/cypress-basics-setup/",
+    "https://irfanahmad.in/tag/tech-review",
+    "https://irfanahmad.in/free-website-checker/",
+    "https://irfanahmad.in/tag/web",
+    "https://irfanahmad.in/block-chatgpt/",
+    "https://irfanahmad.in/cognitive-fitness/",
+    "https://irfanahmad.in/tag/book-review",
+    "https://irfanahmad.in/opensource/",
+    "https://irfanahmad.in/error-page/",
+    "https://irfanahmad.in/authors/",
+    "https://irfanahmad.in/tag/food/",
+    "https://irfanahmad.in/tag/test-automation/",
+    "https://irfanahmad.in/tag/tech-conference/",
+    "https://irfanahmad.in/tag/tech-events/",
+    "https://irfanahmad.in/tag/book-review/",
+    "https://irfanahmad.in/tag/testing/",
+    "https://irfanahmad.in/tag/javascript/",
+    "https://irfanahmad.in/tag/cypress/",
+    "https://irfanahmad.in/tag/automation/",
+    "https://irfanahmad.in/tag/web/",
+    "https://irfanahmad.in/tag/tech-review/",
+    "https://irfanahmad.in/tag/year-review/",
+    "https://irfanahmad.in/tag/reporting/"
+  ],
+  "failedUrls": [
+    {
+      "url": "https://irfanahmad.in/about/",
+      "reason": "[gemini:gemini-flash-lite-latest · explorer.summarisePage] generateContent failed: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent: [503 Service Unavailable] This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+    },
+    {
+      "url": "https://irfanahmad.in/projects/",
+      "reason": "[gemini:gemini-flash-lite-latest · explorer.summarisePage] generateContent failed: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent: [503 Service Unavailable] This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+    },
+    {
+      "url": "https://irfanahmad.in/tags/",
+      "reason": "[gemini:gemini-flash-lite-latest · explorer.summarisePage] generateContent failed: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent: [503 Service Unavailable] This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+    }
+  ]
+}

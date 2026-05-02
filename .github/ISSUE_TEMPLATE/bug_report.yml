@@ -1,0 +1,34 @@
+name: Bug report
+description: Something is broken in monkeytest-core (engine or CLI)
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Do not paste API keys** — use placeholders.
+  - type: input
+    id: version
+    attributes:
+      label: "@mtai/monkeytest-core version"
+      placeholder: e.g. 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: node -v
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: What happened?
+      description: Steps, URL or fixture (if safe to share), and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      render: shell

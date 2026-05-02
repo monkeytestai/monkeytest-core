@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement to the open-source engine
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to achieve with MonkeyTest Core?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Keep it focused; large designs are better as a discussion first.
+    validations:
+      required: true
+  - type: checkboxes
+    id: license
+    attributes:
+      label: Licensing
+      description: Contributions must be AGPL-3.0 compatible.
+      options:
+        - label: I understand this project is AGPL-3.0 and I am OK licensing my contribution under the same license.
+    validations:
+      required: true

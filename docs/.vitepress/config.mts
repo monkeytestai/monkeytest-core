@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'MonkeyTest Core',
   description:
-    'Open-source AI exploratory testing engine — Playwright, LLM planning, live events. AGPL-3.0.',
+    'The open-source AI agent that explores your website like a real user and reports bugs. Playwright + LLM. Works with OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint.',
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
@@ -16,9 +16,15 @@ export default defineConfig({
       {
         name: 'keywords',
         content:
-          'MonkeyTest, Playwright, LLM, QA, exploratory testing, AGPL, browser automation, open source',
+          'monkeytest, AI testing, exploratory testing, Playwright, LLM, browser automation, QA, bug detection, OpenAI, Gemini, Anthropic, Mistral, Groq, open source',
       },
     ],
+    ['meta', { property: 'og:title', content: 'MonkeyTest Core — AI exploratory testing for any web app' }],
+    ['meta', { property: 'og:description', content: 'An open-source AI agent that uses your site like a real user and reports bugs. Playwright + your favourite LLM.' }],
+    ['meta', { property: 'og:image', content: 'https://docs.monkeytest.ai/hero.png' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: 'https://docs.monkeytest.ai/hero.png' }],
   ],
 
   themeConfig: {
@@ -26,12 +32,10 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
+      { text: 'LLMs', link: '/guide/llm-providers', activeMatch: '/guide/llm-' },
       { text: 'Reference', link: '/reference/overview', activeMatch: '/reference/' },
-      { text: 'License & SaaS', link: '/guide/license-and-saas' },
-      {
-        text: 'MonkeyTest Cloud',
-        link: 'https://monkeytest.ai',
-      },
+      { text: 'GitHub', link: 'https://github.com/monkeytest-ai/monkeytest-core' },
+      { text: 'MonkeyTest Cloud', link: 'https://monkeytest.ai' },
     ],
 
     sidebar: {
@@ -42,21 +46,39 @@ export default defineConfig({
             { text: 'Introduction', link: '/guide/introduction' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick start', link: '/guide/quick-start' },
+            { text: 'How it works', link: '/guide/architecture' },
           ],
         },
         {
-          text: 'Using the engine',
+          text: 'Configure the engine',
           items: [
             { text: 'Configuration', link: '/guide/configuration' },
+            { text: 'LLM providers', link: '/guide/llm-providers' },
+            { text: 'Prompt caching', link: '/guide/prompt-caching' },
+            { text: 'Triager polish', link: '/guide/triager' },
+            { text: 'Cost & depth', link: '/guide/cost-and-depth' },
             { text: 'Live events', link: '/guide/live-events' },
-            { text: 'License, AGPL & SaaS', link: '/guide/license-and-saas' },
-            { text: 'Publishing docs (docs.monkeytest.ai)', link: '/guide/publishing-docs' },
+          ],
+        },
+        {
+          text: 'Recipes',
+          items: [
+            { text: 'Common recipes', link: '/guide/recipes' },
+            { text: 'Use in CI', link: '/guide/ci' },
+            { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+          ],
+        },
+        {
+          text: 'Project',
+          items: [
+            { text: 'License', link: '/guide/license' },
+            { text: 'Publishing docs', link: '/guide/publishing-docs' },
           ],
         },
       ],
       '/reference/': [
         {
-          text: 'API',
+          text: 'API Reference',
           items: [
             { text: 'Overview', link: '/reference/overview' },
             { text: 'Monkey class', link: '/reference/monkey' },
@@ -71,7 +93,7 @@ export default defineConfig({
     ],
 
     footer: {
-      message: 'Released under the GNU Affero General Public License v3.0',
+      message: 'AGPL-3.0 · Made for the testing community',
       copyright: 'Copyright © MonkeyTest contributors',
     },
 

@@ -14,7 +14,7 @@ import { createLLM, type LLM } from './llm/index.js';
 import { explore, type ExploreOptions } from './explorer/index.js';
 import { plan, type PlannerOptions } from './planner/index.js';
 import { runPlan, type RunnerOptions } from './runner/index.js';
-import { triage } from './triager/index.js';
+import { triage, triagePolished } from './triager/index.js';
 import { EventBus, noopBus } from './events.js';
 import type {
   MonkeyLLMConfig,
@@ -48,14 +48,22 @@ export class Monkey {
   private readonly explorerLLM: LLM;
   private readonly plannerLLM: LLM;
   private readonly runnerLLM: LLM;
+  /** Optional polish LLM; when present, the triager rewrites bug copy. */
+  private readonly triagerLLM?: LLM;
 
   constructor(config: MonkeyConfig){
 
     this.explorerLLM = createLLM(config.llm.explorer);
     this.plannerLLM  = createLLM(config.llm.planner);
-    // The runner uses the planner's model by default — its job (translate
-    // a step into a tool call) is structurally similar to planner work.
-    this.runnerLLM   = this.plannerLLM;
+    // Runner picks its own LLM if provided; otherwise it reuses the planner.
+    // Most teams will want a *cheaper* runner (per-step tool resolution is
+    // hot-path) and a smarter planner (one-shot, high-stakes design call).
+    this.runnerLLM   = config.llm.runner
+      ? createLLM(config.llm.runner)
+      : this.plannerLLM;
+    // Triager polish is fully opt-in. When unset, the deterministic
+    // rule-based triager runs alone (zero LLM cost).
+    this.triagerLLM  = config.llm.triager ? createLLM(config.llm.triager) : undefined;
 
   }
 
@@ -151,15 +159,23 @@ export class Monkey {
       };
     }
 
-    events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
-    const run = triage(rawRun);
-    events.emit({
-      phase: 'triager', type: 'triage.complete',
-      message: run.bugs.length === 0
-        ? 'Triage complete: no confirmed bugs.'
-        : `Triage complete: ${run.bugs.length} bug${run.bugs.length === 1 ? '' : 's'} reported.`,
-      data: { bugs: run.bugs.length, stats: run.stats },
-    });
+    let run: RunResult;
+    if (this.triagerLLM){
+      // Polished path: rule-based triage runs first inside `triagePolished`,
+      // then each bug is rewritten by the LLM. Failures fall back to the
+      // deterministic copy per-bug — never lose results.
+      run = await triagePolished(rawRun, { llm: this.triagerLLM, events });
+    } else {
+      events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
+      run = triage(rawRun);
+      events.emit({
+        phase: 'triager', type: 'triage.complete',
+        message: run.bugs.length === 0
+          ? 'Triage complete: no confirmed bugs.'
+          : `Triage complete: ${run.bugs.length} bug${run.bugs.length === 1 ? '' : 's'} reported.`,
+        data: { bugs: run.bugs.length, stats: run.stats },
+      });
+    }
 
     return { siteMap, plan: testPlan, run };
 

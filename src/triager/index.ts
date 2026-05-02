@@ -7,17 +7,26 @@
  * single bug with merged evidence so the report doesn't show a wall of
  * near-duplicate cards.
  *
- * v0.2 keeps this rule-based on purpose:
- *   - it is fast (zero LLM calls in the hot path),
- *   - it is deterministic (no flaky "the LLM got bored" variance),
- *   - and the bugs it produces are exactly what the runner observed —
- *     no hallucinated severities, no invented repro steps.
+ * Two layers:
  *
- * A future v0.3 can add an LLM "polish" pass that rewrites titles,
- * suggests fixes, and groups semantically-related bugs.
+ *   1. Rule-based (always on)
+ *      - Fast, deterministic, zero LLM calls.
+ *      - Bugs reflect exactly what the runner observed — no hallucinated
+ *        severities, no invented repro steps.
+ *      - This is the floor. Even if everything else fails, you get this.
+ *
+ *   2. LLM polish (opt-in via MonkeyConfig.llm.triager)
+ *      - Rewrites titles, observed/expected wording, and triage notes from
+ *        the structured evidence the rule-based layer already produced.
+ *      - Per-bug try/catch — a bad LLM response on bug 3 never affects bug 4.
+ *      - Falls back to the rule-based output on any error.
+ *      - Uses prompt caching: system prompt is stable, bug evidence is the
+ *        per-call payload.
  */
 
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
+import type { LLM } from '../llm/index.js';
 import type {
   RunResult,
   FlowResult,
@@ -25,8 +34,107 @@ import type {
   BugReport,
   BugEvidence,
 } from '../types.js';
+import { type EventBus, noopBus } from '../events.js';
 
+export interface TriageOptions {
+  /**
+   * Optional LLM that "polishes" each bug — rewrites title / observed /
+   * expected / triageNotes from the structured evidence. If omitted, only
+   * the deterministic rule-based output ships.
+   *
+   * Cost is small (~120 input tokens cached + ~80 dynamic per bug, ~120
+   * output) but real — keep it off for cheap CI runs.
+   */
+  llm?: LLM;
+  /** Optional event bus. */
+  events?: EventBus;
+  /** Soft cap on bugs to polish per run (cost guard). Default 25. */
+  maxBugsToPolish?: number;
+}
+
+/* ── Public entry ─────────────────────────────────────────────────────── */
+
+/**
+ * Synchronous, deterministic triage. Always available, always cheap. Use this
+ * as a floor; layer `triagePolished` on top when you want LLM-improved copy.
+ */
 export function triage(run: RunResult): RunResult {
+  return collapseAndScore(run);
+}
+
+/**
+ * Async triage that runs the rule-based pass and then *optionally* polishes
+ * each bug with an LLM. Always returns a complete `RunResult`; bugs the LLM
+ * fails to polish keep their rule-based copy.
+ */
+export async function triagePolished(
+  run: RunResult,
+  opts: TriageOptions = {}
+): Promise<RunResult> {
+
+  const events = opts.events ?? noopBus();
+  const base = collapseAndScore(run);
+
+  if (!opts.llm || base.bugs.length === 0){
+    return base;
+  }
+
+  const cap = opts.maxBugsToPolish ?? 25;
+  const toPolish = base.bugs.slice(0, cap);
+
+  events.emit({
+    phase: 'triager', type: 'triage.start',
+    message: `Polishing ${toPolish.length} bug${toPolish.length === 1 ? '' : 's'} with ${opts.llm.providerLabel}…`,
+    data: { bugs: toPolish.length, model: opts.llm.providerLabel },
+  });
+
+  // Polish in parallel with a small concurrency window. Bug polishing is
+  // independent per bug; the only shared state is the LLM client.
+  const POLISH_CONCURRENCY = 4;
+  const queue = [...toPolish];
+  const polished: BugReport[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  async function worker(){
+    while (queue.length > 0){
+      const bug = queue.shift();
+      if (!bug) return;
+      try {
+        const out = await polishBug(bug, opts.llm!);
+        polished.push(out);
+        succeeded++;
+      } catch (err) {
+        // Per-bug failure: keep the rule-based copy. Never throw from triage.
+        polished.push(bug);
+        failed++;
+        events.emit({
+          phase: 'triager', type: 'engine.error',
+          message: `Polish failed for ${bug.id}; keeping deterministic copy.`,
+          data: { bugId: bug.id, error: err instanceof Error ? err.message : String(err) },
+        });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: POLISH_CONCURRENCY }, () => worker()));
+
+  // Restore original order (Promise.all is concurrent so polished order shifts).
+  const byId = new Map(polished.map(b => [b.id, b]));
+  const orderedPolished: BugReport[] = base.bugs.map(b => byId.get(b.id) ?? b);
+
+  events.emit({
+    phase: 'triager', type: 'triage.complete',
+    message: `Triage complete: ${succeeded} polished, ${failed} fell back to deterministic.`,
+    data: { succeeded, failed, total: base.bugs.length, ...(opts.llm.lastUsage ? { usage: opts.llm.lastUsage } : {}) },
+  });
+
+  return { ...base, bugs: orderedPolished };
+
+}
+
+/* ── Rule-based core ──────────────────────────────────────────────────── */
+
+function collapseAndScore(run: RunResult): RunResult {
 
   const bugs: BugReport[] = [];
   const byFingerprint = new Map<string, BugReport>();
@@ -41,8 +149,6 @@ export function triage(run: RunResult): RunResult {
       const existing = byFingerprint.get(bug.fingerprint);
 
       if (existing){
-        // Merge evidence — capturing additional screenshots/console errors
-        // from a duplicate occurrence makes the bug card more useful.
         if (step.screenshotPath){
           existing.evidence.screenshots.push(step.screenshotPath);
         }
@@ -66,7 +172,6 @@ export function triage(run: RunResult): RunResult {
 
   }
 
-  // Tally severities into the run stats.
   const stats = { ...run.stats };
   for (const b of bugs){
     if (b.severity === 'critical') stats.bugsCritical++;
@@ -84,9 +189,6 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
 
   const observation = step.observation || step.error || 'Step failed.';
 
-  // Stable fingerprint: action text + tool + a normalised error code.
-  // We deliberately don't include the URL — the same login bug on /signin
-  // and /login should still collapse into one entry.
   const fingerprint = createHash('sha1')
     .update([
       step.action.trim().toLowerCase(),
@@ -141,20 +243,11 @@ function normalisedErrorCode(step: StepResult): string {
   return err.replace(/\s+/g, '-').slice(0, 40);
 }
 
-/**
- * Severity is mostly inherited from the planner's `severityIfFails`, but
- * we bump it up when the failure is accompanied by hard signal (5xx
- * responses, page errors, etc.) — that's almost always a real bug rather
- * than a flaky selector.
- */
 function inferSeverity(flow: FlowResult, step: StepResult): BugReport['severity'] {
   const has5xx = (step.networkFailures || []).some(n => (n.status || 0) >= 500);
   const hasPageError = (step.consoleErrors || []).some(c => c.level === 'error');
 
-  // The flow we got from the runner doesn't carry severityIfFails, but the
-  // runner copies it from the plan via the FlowResult shape extension. If
-  // missing, default to "major" — a failed planned step is rarely trivial.
-  const planned = (flow as any).severityIfFails as BugReport['severity'] | undefined;
+  const planned = (flow as unknown as { severityIfFails?: BugReport['severity'] }).severityIfFails;
   let severity: BugReport['severity'] = planned || 'major';
 
   if (has5xx || (step.error || '').toLowerCase().includes('crash')) severity = 'critical';
@@ -180,4 +273,86 @@ function explain(step: StepResult): string {
     parts.push(`${(step.consoleErrors || []).length} console error(s) fired during the step.`);
   }
   return parts.join(' ') || step.observation || 'Step failed without further detail.';
+}
+
+/* ── LLM polish ───────────────────────────────────────────────────────── */
+
+/**
+ * The polisher's contract:
+ *   - Improve the *wording* of an existing bug; do not invent new bugs.
+ *   - Keep severity and fingerprint exactly as given.
+ *   - Be terse and engineer-friendly. No marketing fluff.
+ *   - If the LLM returns garbage, throw — the caller falls back to the
+ *     rule-based copy.
+ */
+const PolishedSchema = z.object({
+  title: z.string().min(8).max(120),
+  observed: z.string().min(8).max(600),
+  expected: z.string().min(8).max(400),
+  triageNotes: z.string().min(8).max(600),
+});
+
+const POLISH_SYSTEM = `You are a senior QA engineer rewriting an automated bug report so it reads like a human-authored ticket.
+
+Goal: tighten the wording. Keep the meaning identical. Be precise, not verbose.
+
+Rules:
+  - The "title" is a one-liner under 90 chars: <area>: <what broke>. No emoji, no severity, no flow id.
+  - "observed" is what the test actually saw, in past tense, one or two sentences. Cite the concrete error if present.
+  - "expected" is what should have happened, in present tense, one sentence.
+  - "triageNotes" gives a senior engineer the next step: what to look at, what likely caused it (selector/timing/network/server). 1–3 sentences.
+  - NEVER invent details. If the evidence doesn't say it, don't claim it.
+  - NEVER restate the JSON keys, the bug id, or the words "critical/major/minor".
+
+Respond with a single JSON object: { "title", "observed", "expected", "triageNotes" }.`;
+
+async function polishBug(bug: BugReport, llm: LLM): Promise<BugReport> {
+
+  // The bug evidence is the per-call dynamic payload; it changes per bug,
+  // so it's NOT cacheable. The system prompt above is the cached prefix.
+  const evidenceLines = [
+    bug.evidence.screenshots.length
+      ? `screenshots: ${bug.evidence.screenshots.length} captured`
+      : 'screenshots: none',
+    bug.evidence.consoleErrors.length
+      ? `console errors:\n${bug.evidence.consoleErrors.slice(0, 6).map(c => `  - [${c.level}] ${c.message.slice(0, 200)}`).join('\n')}`
+      : 'console errors: none',
+    bug.evidence.networkFailures.length
+      ? `network failures:\n${bug.evidence.networkFailures.slice(0, 6).map(n => `  - ${n.method} ${n.url} → ${n.status || n.failureText || 'failed'}`).join('\n')}`
+      : 'network failures: none',
+  ].join('\n');
+
+  const userPrompt = `Bug to rewrite:
+
+  affectedFlow: ${bug.affectedFlow}
+  severity:     ${bug.severity}
+
+  current title:        ${bug.title}
+  current observed:     ${bug.observed}
+  current expected:     ${bug.expected}
+  current triageNotes:  ${bug.triageNotes}
+
+  reproSteps:
+${bug.reproSteps.map((s, i) => `    ${i + 1}. ${s}`).join('\n')}
+
+  evidence:
+${evidenceLines.split('\n').map(l => `    ${l}`).join('\n')}
+
+Rewrite. Same JSON shape.`;
+
+  const polished = await llm.generateJSON({
+    label: 'triager.polish',
+    system: POLISH_SYSTEM,
+    prompt: userPrompt,
+    schema: PolishedSchema,
+  });
+
+  return {
+    ...bug,
+    title: polished.title.trim(),
+    observed: polished.observed.trim(),
+    expected: polished.expected.trim(),
+    triageNotes: polished.triageNotes.trim(),
+  };
+
 }

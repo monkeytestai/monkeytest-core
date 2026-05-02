@@ -9,18 +9,51 @@
 
 /* ── LLM configuration ────────────────────────────────────────────────── */
 
-export type LLMProvider = 'gemini' | 'openai' | 'anthropic';
+export type LLMProvider =
+  | 'openai'
+  | 'gemini'
+  | 'anthropic'
+  | 'mistral'
+  | 'groq'
+  | 'openai_compatible';
 
 export interface LLMConfig {
   provider: LLMProvider;
   model?: string;
   apiKey?: string;
+  /**
+   * Optional base URL for self-hosted or OpenAI-compatible endpoints
+   * (Ollama, LM Studio, vLLM, OpenRouter, Groq, Together, …). Used by the
+   * `openai_compatible` provider; ignored by hosted providers.
+   */
+  baseURL?: string;
+  /** Sampling temperature override (default 0.2 — JSON tasks). */
+  temperature?: number;
 }
 
-/** Tiered: cheap + fast for hot path, smart + slow for triage. */
+/**
+ * Tiered LLM configuration. Each phase can use a different provider/model so
+ * teams can mix a cheap model for the chatty crawl phase with a smarter model
+ * for planning, and a fast/cheap model again for per-step tool resolution.
+ *
+ *   - `explorer` — per-page summaries (high call volume; cheap is fine)
+ *   - `planner`  — single high-stakes call to design the test flows (use the
+ *                  smartest tier you can afford)
+ *   - `runner`   — per-step "what tool should I call?" decisions (call volume
+ *                  scales with steps; cheap is fine)
+ *   - `triager`  — optional LLM polish pass that rewrites bug titles,
+ *                  observed/expected wording, and triage notes from the
+ *                  evidence the rule-based triager already collected. Cheap
+ *                  and resilient (per-bug try/catch with deterministic
+ *                  fallback). Set this when you want human-readable bug copy.
+ *
+ * Omit `runner` and the engine reuses `planner` (back-compat). Omit `triager`
+ * and the engine uses the rule-based triager only (zero extra LLM cost).
+ */
 export interface MonkeyLLMConfig {
   explorer: LLMConfig;
   planner: LLMConfig;
+  runner?: LLMConfig;
   triager?: LLMConfig;
 }
 

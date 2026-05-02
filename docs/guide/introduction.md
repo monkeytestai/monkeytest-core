@@ -1,24 +1,44 @@
 # Introduction
 
-**MonkeyTest Core** is a headless TypeScript engine for **exploratory AI testing**:
+**MonkeyTest Core** is a TypeScript library that turns an LLM into an exploratory test agent for your web app. You give it a URL; it gives you back a list of bugs with screenshots.
 
-1. **Explore** — Visit pages like a real user, capture structure and screenshots.
-2. **Plan** — Ask an LLM to propose high-value user flows from what was seen.
-3. **Run** — Execute each step via Playwright with per-step evidence.
-4. **Triage** — Turn failures into deduplicated, fingerprinted bug reports.
+It runs in **four phases**:
 
-It is designed to power both **self-hosted tooling** and **[MonkeyTest Cloud](https://monkeytest.ai)** — our managed SaaS for teams, solo founders, and non-technical users who do not want to run infrastructure.
+1. **Explore** — Open a real Chromium browser via Playwright, visit pages, summarise what each one does, capture per-page screenshots.
+2. **Plan** — Ask an LLM to propose realistic user flows grounded in what was actually seen on the site (no fantasy selectors).
+3. **Run** — Execute each flow step by step, recording per-step PNGs, console errors, network failures, and an optional flow video.
+4. **Triage** — Convert raw failures into a deduplicated, fingerprinted `BugReport[]` that's stable across runs.
 
-## Who is this for?
+The whole pipeline returns a typed `RunResult` you can serialise, diff, persist, or hand to your own UI.
 
-| Audience | Recommendation |
-| -------- | ---------------- |
-| Developers & OSS users | Clone this repo, run locally, hack under **AGPL-3.0**. |
-| Startups / product teams | Use **[MonkeyTest Cloud](https://monkeytest.ai)** for billing, reports, and scale. |
-| Competitors forking the engine | AGPL requires sharing source of **modified** versions offered over a network — read the [license FAQ](/guide/license-and-saas). |
+## Who it's for
 
-## Why open source?
+- **Frontend devs** who want a sanity check on their staging URL without writing a Playwright suite from scratch.
+- **Indie hackers / small teams** who can't justify a dedicated QA engineer but still want eyes on the product before every deploy.
+- **Platform / DX teams** building internal QA dashboards and want a reliable engine to embed.
+- **Agencies** running quick check-ups across many client sites.
 
-We want the **testing community** to trust the engine, extend it, and build integrations. The **Affero GPL** keeps commercial “take the code, close the source, resell as SaaS” honest while still letting everyone learn and run the stack locally.
+## What you'll get out of a run
 
-Next: [Installation](/guide/installation) →
+- A `SiteMap` — pages visited, summaries, outbound links, screenshot paths.
+- A `TestPlan` — flows the LLM thought were worth running, grounded in the site map.
+- A `RunResult` — every step's outcome, evidence, and timing, plus a clean bug list.
+- A live `EventBus` stream you can wire into a UI in 5 lines.
+
+## What you bring
+
+- **Node.js 20+**
+- An **LLM key** for any one of: OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter, …)
+- A URL you want tested
+
+That's it.
+
+## Design principles
+
+- **No DSL.** You write TypeScript or call the CLI. There's no YAML schema to memorise.
+- **No fantasy steps.** The planner is constrained to act on things the explorer actually saw.
+- **Resilient by default.** If the planner fails, you still get the explorer's screenshots. If a flow blows up, you still get the steps that ran.
+- **Hot path is cheap.** Per-step LLM calls use the cheapest model you give them; the smart model is reserved for the one-shot planning call.
+- **Observable.** Every phase emits structured events. Your dashboard shouldn't have to parse logs.
+
+Next: [Installation →](/guide/installation)

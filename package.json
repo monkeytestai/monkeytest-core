@@ -1,7 +1,7 @@
 {
   "name": "@mtai/monkeytest-core",
-  "version": "0.2.0",
-  "description": "Open-source AI exploratory testing engine: Playwright + LLM planning + live events. AGPL-3.0. Powers monkeytest.ai.",
+  "version": "0.3.0",
+  "description": "Open-source AI exploratory testing engine. Crawls a real browser with Playwright, plans flows with an LLM, executes with screenshots, and reports deduplicated bugs. Works with OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint.",
   "license": "AGPL-3.0-only",
   "author": "MonkeyTest",
   "homepage": "https://docs.monkeytest.ai",
@@ -14,16 +14,24 @@
   },
   "keywords": [
     "monkeytest",
+    "ai-testing",
+    "exploratory-testing",
     "playwright",
-    "testing",
+    "browser-automation",
     "qa",
     "e2e",
-    "exploratory-testing",
     "llm",
     "openai",
     "gemini",
-    "browser-automation",
-    "agpl",
+    "anthropic",
+    "claude",
+    "mistral",
+    "groq",
+    "ollama",
+    "openrouter",
+    "bug-detection",
+    "test-automation",
+    "agent",
     "typescript"
   ],
   "type": "module",
@@ -36,25 +44,30 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "explore": "tsx src/cli.ts explore",
     "clean": "rm -rf dist .tsbuildinfo",
+    "prepublishOnly": "npm run clean && npm run build",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@google/generative-ai": "^0.24.1",
+    "@mistralai/mistralai": "^1.15.1",
     "openai": "^4.77.0",
     "playwright": "^1.50.0",
     "zod": "^3.24.1"
@@ -68,5 +81,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

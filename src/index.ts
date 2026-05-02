@@ -21,10 +21,19 @@ export type { PlannerOptions } from './planner/index.js';
 export { runPlan } from './runner/index.js';
 export type { RunnerOptions, RunnerEvent } from './runner/index.js';
 
-export { triage } from './triager/index.js';
+export { triage, triagePolished } from './triager/index.js';
+export type { TriageOptions } from './triager/index.js';
 
 export { createLLM } from './llm/index.js';
-export type { LLM, GenerateJSONOptions } from './llm/index.js';
+export type { LLM, GenerateJSONOptions, LLMUsage } from './llm/index.js';
+
+export {
+  autoLLMConfig,
+  detectProviderFromEnv,
+  CHEAP_FAST_MODEL,
+  SMART_MODEL,
+} from './llm/presets.js';
+export type { AutoLLMOptions } from './llm/presets.js';
 
 export { EventBus, noopBus } from './events.js';
 export type { LiveEvent, LiveEventType, LiveEventListener, LivePhase } from './events.js';

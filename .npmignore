@@ -1,0 +1,49 @@
+# Source — only ship the built `dist/`
+src/
+tsconfig.json
+tsconfig.tsbuildinfo
+.tsbuildinfo
+
+# Tooling and tests
+.github/
+.vscode/
+.idea/
+.editorconfig
+.eslintrc*
+.prettierrc*
+.prettierignore
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+__tests__/
+test/
+tests/
+coverage/
+
+# Docs site (lives in this repo for convenience but is published separately)
+docs/
+*.md.bak
+
+# Local artefacts
+.monkeytest/
+node_modules/
+.env
+.env.*
+!.env.example
+.DS_Store
+.cache/
+.turbo/
+*.log
+
+# Editor / OS
+*.swp
+*~
+Thumbs.db
+
+# Keep these (override anything above):
+!README.md
+!LICENSE
+!NOTICE
+!CHANGELOG.md
+!dist/

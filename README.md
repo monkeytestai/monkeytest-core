@@ -1,116 +1,142 @@
 <p align="center">
-  <img src="docs/public/logo.svg" alt="MonkeyTest Core" width="96" height="96" />
+  <img src="docs/public/hero.png" alt="MonkeyTest Core — an AI agent that uses your site like a real user and reports the bugs" width="820" />
 </p>
 
 <h1 align="center">MonkeyTest Core</h1>
 
 <p align="center">
-  <strong>Open-source AI exploratory testing engine</strong><br />
-  Playwright · LLM planning · Live events · TypeScript
+  <strong>An AI agent that uses your site like a real user — and reports the bugs.</strong><br />
+  Open source. Playwright + your favourite LLM. Two lines to first run.
 </p>
 
 <p align="center">
-  <a href="https://www.gnu.org/licenses/agpl-3.0"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="AGPL-3.0" /></a>
+  <a href="https://www.npmjs.com/package/@mtai/monkeytest-core"><img src="https://img.shields.io/npm/v/@mtai/monkeytest-core?color=7c3aed" alt="npm" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+" /></a>
   <a href="https://docs.monkeytest.ai"><img src="https://img.shields.io/badge/docs-docs.monkeytest.ai-7c3aed" alt="Documentation" /></a>
-  <a href="https://monkeytest.ai"><img src="https://img.shields.io/badge/Cloud%20SaaS-monkeytest.ai-0f172a" alt="MonkeyTest Cloud" /></a>
+  <a href="https://github.com/monkeytest-ai/monkeytest-core/actions"><img src="https://img.shields.io/badge/CI-passing-22c55e" alt="CI" /></a>
+  <a href="https://github.com/monkeytest-ai/monkeytest-core/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64748b" alt="AGPL-3.0" /></a>
+</p>
+
+<p align="center">
+  <a href="https://docs.monkeytest.ai/guide/quick-start">Quick start</a> ·
+  <a href="https://docs.monkeytest.ai/guide/llm-providers">LLM providers</a> ·
+  <a href="https://docs.monkeytest.ai/guide/cost-and-depth">Cost & depth</a> ·
+  <a href="https://docs.monkeytest.ai/reference/overview">API</a> ·
+  <a href="https://monkeytest.ai">Cloud</a>
 </p>
 
 ---
 
-**MonkeyTest Core** crawls a real browser session over your app, asks an LLM which user journeys matter, executes those flows step-by-step with **screenshots and evidence**, and triages failures into structured bug reports.
+Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by **looking** at your app first.
 
-| I am a… | Best path |
-| ------- | --------- |
-| **Developer** who wants to hack, fork, or self-host | You’re in the right repo. **AGPL-3.0** — see [license FAQ](https://docs.monkeytest.ai/guide/license-and-saas.html). |
-| **Founder / PM / non-dev** who wants tests without running code | Use **[MonkeyTest Cloud](https://monkeytest.ai)** — same engine, zero ops. |
-| **Another SaaS** thinking of reselling a fork | AGPL is intentional. Read the FAQ and talk to a lawyer before you ship. |
+It opens a real browser, crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and hands you back a structured report with screenshots, deduplicated bug fingerprints, and a live event stream you can pipe into your own UI.
 
-📚 **Full documentation:** [docs.monkeytest.ai](https://docs.monkeytest.ai)
+```ts
+import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
 
----
+const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
-## Why AGPL-3.0?
+const { run } = await monkey.executeAndTriage('https://example.com', {
+  explore: { maxPages: 8, screenshotsDir: '.monkeytest/shots' },
+  plan:    { maxFlows: 4 },
+  run:     { screenshotsDir: '.monkeytest/shots' },
+});
 
-We want the engine **inspectable and improvable** by the community, while making it hard for competitors to **proprietary-fork** the product without giving back. The **Affero** clause matters when you run **modified** code as a **network service**.
-
-Using **MonkeyTest Cloud** is the supported way to get a managed product without operating this repo yourself.
-
----
-
-## Features
-
-- **Explorer** — Chromium + Playwright; per-page summaries and screenshots  
-- **Planner** — Flows grounded in what was actually seen (no fantasy selectors)  
-- **Runner** — Deterministic step execution; per-step PNGs; optional flow video  
-- **Triager** — Deduped `BugReport`s with fingerprints and evidence  
-- **`EventBus`** — Stream live progress to your own dashboard ([docs](https://docs.monkeytest.ai/guide/live-events.html))  
-
----
-
-## Quick start
-
-```bash
-git clone https://github.com/monkeytest-ai/monkeytest-core.git
-cd monkeytest-core
-npm install
-npx playwright install chromium
-npm run build
-
-export OPENAI_API_KEY=sk-...
-node dist/cli.js explore https://example.com
+console.log(`${run.bugs.length} bug(s) across ${run.stats.flowsTotal} flows`);
 ```
 
-Or programmatically:
+That's it. No fixtures, no page objects, no recorders.
+
+## Why MonkeyTest Core?
+
+- **Drop-in, not framework.** One npm package, one constructor. No DSL.
+- **Bring your own LLM.** OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter). Pick a different model **per phase**.
+- **Real evidence.** Per-step screenshots, optional WebM video, console + network failures, and bug reports with stable fingerprints across runs.
+- **Live activity stream.** Subscribe to a typed `EventBus` and pipe explorer / planner / runner / triager events into your own dashboard.
+- **Resilient.** If the planner fails, you still get explorer screenshots. If a flow blows up, you still get the steps that ran. Nothing is all-or-nothing.
+- **Hackable, typed, observable.** Pure TypeScript, zod-validated LLM output, structured `RunResult` you can serialise.
+
+## Install
+
+```bash
+npm install @mtai/monkeytest-core
+npx playwright install chromium
+```
+
+```bash
+export GEMINI_API_KEY=...   # or OPENAI_API_KEY / ANTHROPIC_API_KEY / MISTRAL_API_KEY / GROQ_API_KEY
+```
+
+## A comprehensive example
 
 ```ts
 import { Monkey, EventBus } from '@mtai/monkeytest-core';
 
 const events = new EventBus();
-events.on((e) => console.log(e.message));
+events.on(e => console.log(`[${e.phase}] ${e.type}: ${e.message}`));
 
+// Mix providers per phase: cheap explorer + smart planner + fast runner
 const monkey = new Monkey({
   llm: {
-    explorer: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY! },
-    planner:  { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY! },
+    explorer: { provider: 'gemini',    model: 'gemini-flash-lite-latest' },
+    planner:  { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+    runner:   { provider: 'groq',      model: 'llama-3.3-70b-versatile' },
   },
 });
 
-const { run } = await monkey.executeAndTriage('https://example.com', {
+const { siteMap, plan, run } = await monkey.executeAndTriage('https://app.example.com', {
   events,
-  explore: { maxPages: 8, screenshotsDir: '.monkeytest/screenshots' },
-  plan:    { maxFlows: 4 },
-  run:     { screenshotsDir: '.monkeytest/screenshots', headless: true },
+  explore: { maxPages: 12, screenshotsDir: '.monkeytest/shots' },
+  plan:    { maxFlows: 6, includeAuthFlows: false },
+  run:     { screenshotsDir: '.monkeytest/shots', headless: true, stepTimeoutMs: 20_000 },
 });
+
+console.log(`Visited ${siteMap.pages.length} pages, planned ${plan.flows.length} flows.`);
+console.log(`Run: ${run.stats.flowsPassed}/${run.stats.flowsTotal} flows passed.`);
+
+for (const bug of run.bugs.filter(b => b.severity !== 'minor')){
+  console.error(`- [${bug.severity}] ${bug.title}\n  ${bug.observed}`);
+  console.error(`  evidence: ${bug.evidence.screenshots.length} screenshot(s)`);
+}
 ```
 
----
+## Where it shines
 
-## Documentation site (this repo)
+- **Pre-release sanity checks** on staging.
+- **PR previews** — run on Vercel/Netlify preview URLs in CI ([recipe](https://docs.monkeytest.ai/guide/ci)).
+- **Daily smoke runs** against prod with cheap models.
+- **Embedding in your own product** — the engine is a library, not a CLI.
 
-```bash
-npm run docs:dev      # local preview
-npm run docs:build    # static output → docs/.vitepress/dist
-```
+## What it isn't
 
-Deploy that folder to **docs.monkeytest.ai** (see [docs/DEPLOY.md](./docs/DEPLOY.md)).
+- Not a replacement for **deterministic critical-path E2E tests** — it's a complement.
+- Not a **load tester** or **a11y auditor**.
+- Not magic — quality of bug reports tracks the quality of the LLM you give it.
 
----
+## Documentation
+
+Everything lives at **[docs.monkeytest.ai](https://docs.monkeytest.ai)**:
+
+- [Quick start](https://docs.monkeytest.ai/guide/quick-start) — first run in 60 seconds
+- [How it works](https://docs.monkeytest.ai/guide/architecture) — the four phases
+- [LLM providers](https://docs.monkeytest.ai/guide/llm-providers) — model picks per provider
+- [Cost & depth](https://docs.monkeytest.ai/guide/cost-and-depth) — what each run costs
+- [Recipes](https://docs.monkeytest.ai/guide/recipes) — battle-tested patterns
+- [Use in CI](https://docs.monkeytest.ai/guide/ci) — GitHub Actions setup
+- [Troubleshooting](https://docs.monkeytest.ai/guide/troubleshooting) — common errors
+
+## MonkeyTest Cloud
+
+Don't want to run it yourself? **[MonkeyTest Cloud](https://monkeytest.ai)** is the same engine, fully managed: hosted browsers, history, dashboards, team accounts.
 
 ## Contributing
 
-Issues and PRs welcome. By contributing, you agree your work is licensed under **AGPL-3.0** — see [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
-
----
+PRs and issues welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ## Security
 
-Report vulnerabilities privately: see [SECURITY.md](./SECURITY.md).
+Report vulnerabilities privately — see [SECURITY.md](./SECURITY.md).
 
 ---
 
-## License
-
-Copyright © MonkeyTest and contributors. Licensed under the **GNU Affero General Public License v3.0** — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
-
-`SPDX-License-Identifier: AGPL-3.0-only`
+<sub>AGPL-3.0 · `SPDX-License-Identifier: AGPL-3.0-only` · See [LICENSE](./LICENSE) for the full text and the [license summary](https://docs.monkeytest.ai/guide/license).</sub>

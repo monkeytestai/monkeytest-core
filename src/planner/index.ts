@@ -73,23 +73,29 @@ export async function plan(
     data: { pages: siteMap.pages.length, siteType: siteMap.siteType },
   });
 
-  const prompt = `
-You are a senior QA engineer turning an exploratory crawl into a concrete test plan.
+  // Prompt is intentionally split into THREE parts to maximise prompt-cache
+  // hits across runs against the same site:
+  //
+  //   1. `system`     — never changes. Identical across every planner call
+  //                     in the engine's lifetime. Anthropic caches it via
+  //                     a system-block ephemeral breakpoint; OpenAI caches
+  //                     it as part of the message-prefix hash.
+  //   2. `cacheable`  — the long stable site-map dump. Identical across all
+  //                     calls against the same site. This is by far the
+  //                     largest token block in the prompt — caching it has
+  //                     the most impact.
+  //   3. `prompt`     — the small per-call instructions (maxFlows, auth
+  //                     toggle, schema reminder). Tiny, cheap to re-send.
+  //
+  // Order matters: providers cache by *prefix*, so the dynamic bit goes LAST.
+  const system = `You are a senior QA engineer turning an exploratory crawl into a concrete test plan.
 
-Constraints:
-  - Produce AT MOST ${maxFlows} flows total. Prioritise flows that protect the most user value.
-  - Each flow should be runnable by a Playwright agent with no human input. Use only data
-    that the explorer has surfaced or that a real anonymous visitor could reasonably provide
-    (e.g. searching for a generic term, browsing a category, opening the contact form).
-  - DO NOT include flows that require credentials we don't have${includeAuth ? '' : ' — skip auth-gated pages entirely'}.
-    ${includeAuth
-      ? 'You MAY include flows for auth-gated pages, but mark them kind="auth_required" so the runner can flag them as "needs credentials" instead of failing.'
-      : ''}
-  - Be practical. "Click sign-up button → check the form appears" is great. "Complete a real signup with a real email" is not.
-  - Behave like an exploratory user, not a brittle unit test. Prefer actions and observations over exact assertions.
+General principles:
+  - Behave like an exploratory user, not a brittle unit test.
+  - Prefer actions and observations over exact assertions.
   - Do NOT invent functionality. If the crawl did not show a search box, form, menu, or button, do not create a flow for it.
-  - Do NOT assert exact document titles such as "Show | Hacker News"; titles vary and are not user-critical.
-  - For each flow, give a 1-sentence expectation about user-visible behaviour, not exact title/text unless that exact text came from the explored page content.
+  - Do NOT assert exact document titles such as "Show | Hacker News" — titles vary and are not user-critical.
+  - Each flow must be runnable by a Playwright agent with no human input.
 
 Each flow has the shape:
   {
@@ -101,9 +107,9 @@ Each flow has the shape:
     "steps": array of { "action": "...", "expectation"?: "..." }, 1–8 items,
     "expectation": one-sentence success criterion for the whole flow,
     "severityIfFails": "critical" | "major" | "minor"
-  }
+  }`;
 
-Site:        ${siteMap.startUrl}
+  const cacheable = `Site:        ${siteMap.startUrl}
 Site type:   ${siteMap.siteType}
 Description: ${siteMap.summary}
 
@@ -115,17 +121,28 @@ ${siteMap.pages.map(p => `
     auth-gated: ${p.authGated}
     interactive:
       ${p.interactive.length === 0 ? '(none)' : p.interactive.map(i => `${i.kind} "${i.label}"`).join(', ')}
-`).join('')}
+`).join('')}`;
+
+  const prompt = `Now produce the test plan.
+
+Per-call constraints:
+  - Produce AT MOST ${maxFlows} flows total. Prioritise flows that protect the most user value.
+  - Use only data the explorer surfaced or that a real anonymous visitor could reasonably provide
+    (a generic search term, browsing a category, opening the contact form).
+  - ${includeAuth
+      ? 'You MAY include flows for auth-gated pages — mark them kind="auth_required" so the runner can flag them as "needs credentials" instead of failing.'
+      : 'Skip auth-gated pages entirely. Do NOT include flows that require credentials we do not have.'}
 
 Reply with JSON:
 {
   "flows": [ ... ],
   "notes": "(optional caveats)"
-}
-`;
+}`;
 
   const result = await llm.generateJSON({
     label: 'planner.generate',
+    system,
+    cacheable,
     prompt,
     schema: PlanSchema,
   });
@@ -141,12 +158,15 @@ Reply with JSON:
     return { ...f, id };
   });
 
+  // Surface prompt-cache stats so the SaaS can display "saved $X" tooltips.
+  const usage = llm.lastUsage;
   events.emit({
     phase: 'planner', type: 'plan.complete',
     message: `Plan ready: ${flows.length} flow${flows.length === 1 ? '' : 's'} to execute.`,
     data: {
       flows: flows.length,
       flowNames: flows.map(f => f.name),
+      ...(usage ? { usage } : {}),
     },
   });
 

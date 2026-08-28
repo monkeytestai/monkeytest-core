@@ -60,6 +60,8 @@ export type { LiveEvent, LiveEventType, LiveEventListener, LivePhase } from './e
 export type {
   LLMProvider,
   LLMConfig,
+  LLMUsageEvent,
+  LLMUsageSink,
   MonkeyLLMConfig,
   SiteMap,
   SiteMapPage,

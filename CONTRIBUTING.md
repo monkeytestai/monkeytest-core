@@ -18,7 +18,7 @@ are licensed under the same terms (see [LICENSE](./LICENSE)).
 ## Development setup
 
 ```bash
-git clone https://github.com/monkeytest-ai/monkeytest-core.git
+git clone https://github.com/monkeytestai/monkeytest-core.git
 cd monkeytest-core
 npm install
 npx playwright install chromium

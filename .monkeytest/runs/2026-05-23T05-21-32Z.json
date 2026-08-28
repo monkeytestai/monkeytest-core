@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "createdAt": "2026-05-23T05:21:32.423Z",
+  "engine": "monkeytest-core@0.3",
+  "id": "2026-05-23T05-21-32Z",
+  "planRef": {
+    "path": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/plan.json",
+    "createdAt": "2026-05-23T05:17:23.321Z"
+  },
+  "run": {
+    "startUrl": "https://irfanahmad.in",
+    "startedAt": "2026-05-23T05:20:57.086Z",
+    "finishedAt": "2026-05-23T05:21:32.418Z",
+    "flows": [
+      {
+        "flowId": "portfolio-navigation",
+        "name": "Navigate Main Portfolio Sections",
+        "description": "Verify that a user can navigate from the homepage to the About, Projects, and Contact pages.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'About' link",
+            "expectation": "The About page loads, displaying the professional biography.",
+            "status": "passed",
+            "observation": "Clicked text:About.",
+            "tool": "click",
+            "target": "About",
+            "durationMs": 8817,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Projects' link",
+            "expectation": "The Projects page loads, displaying the portfolio of apps and websites.",
+            "status": "passed",
+            "observation": "Clicked text:Projects.",
+            "tool": "click",
+            "target": "Projects",
+            "durationMs": 2944,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-02-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Contact' link",
+            "expectation": "The Contact page loads, displaying the contact form.",
+            "status": "passed",
+            "observation": "Clicked text:Contact.",
+            "tool": "click",
+            "target": "Contact",
+            "durationMs": 2739,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-03-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              },
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 19009,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation.webm"
+      },
+      {
+        "flowId": "blog-search",
+        "name": "Search for Blog Posts",
+        "description": "Verify that the search functionality allows users to find content related to test automation.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "failed",
+        "failureReason": "locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[2m    16 × locator resolved to hidden <input type=\"text\" role=\"searchbox\" id=\"search-input\" class=\"search-input\" aria-label=\"Type to search\" placeholder=\"Type to search\"/>\u001b[22m\n",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the search input field",
+            "expectation": "The search input is visible on the page.",
+            "status": "failed",
+            "observation": "Wait on placeholder:Type to search failed: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[…",
+            "tool": "wait",
+            "target": "Type to search",
+            "durationMs": 14529,
+            "error": "locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[2m    16 × locator resolved to hidden <input type=\"text\" role=\"searchbox\" id=\"search-input\" class=\"search-input\" aria-label=\"Type to search\" placeholder=\"Type to search\"/>\u001b[22m\n"
+          },
+          {
+            "index": 2,
+            "action": "Type 'Cypress' into the search input and submit",
+            "expectation": "The search results or filtered posts matching the query are displayed.",
+            "status": "blocked",
+            "observation": "Earlier step failed; not attempted."
+          }
+        ],
+        "durationMs": 16064,
+        "bugIds": [
+          "bug-blog-search-1-0afc59"
+        ],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-blog-search.webm"
+      },
+      {
+        "flowId": "explore-tags",
+        "name": "Browse Posts by Tag",
+        "description": "Verify that clicking on a tag filters and displays relevant blog posts.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/tags/",
+        "status": "error",
+        "failureReason": "browser.newContext: Target page, context or browser has been closed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'test-automation' tag link",
+            "expectation": "The page updates to show posts associated with the 'test-automation' tag.",
+            "status": "blocked",
+            "observation": "Flow aborted before this step."
+          }
+        ],
+        "durationMs": 1,
+        "bugIds": []
+      },
+      {
+        "flowId": "contact-form-check",
+        "name": "Verify Contact Form Presence",
+        "description": "Verify that the contact form is present and interactive on the Contact page.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/contact/",
+        "status": "error",
+        "failureReason": "browser.newContext: Target page, context or browser has been closed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Verify the presence of the Contact form",
+            "expectation": "The contact form container is visible on the page.",
+            "status": "blocked",
+            "observation": "Flow aborted before this step."
+          },
+          {
+            "index": 2,
+            "action": "Verify the presence of the 'Send Message' button",
+            "expectation": "The submission button is visible and active.",
+            "status": "blocked",
+            "observation": "Flow aborted before this step."
+          }
+        ],
+        "durationMs": 0,
+        "bugIds": []
+      },
+      {
+        "flowId": "archive-navigation",
+        "name": "Navigate Monthly and Yearly Archives",
+        "description": "Verify that users can toggle between monthly and yearly views of archived posts.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/monthly-archive/",
+        "status": "error",
+        "failureReason": "browser.newContext: Target page, context or browser has been closed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'Yearly View' link",
+            "expectation": "The yearly archive page loads successfully.",
+            "status": "blocked",
+            "observation": "Flow aborted before this step."
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Monthly View' link",
+            "expectation": "The monthly archive page loads successfully.",
+            "status": "blocked",
+            "observation": "Flow aborted before this step."
+          }
+        ],
+        "durationMs": 0,
+        "bugIds": []
+      }
+    ],
+    "bugs": [
+      {
+        "id": "bug-blog-search-1-0afc59",
+        "fingerprint": "0afc5987ba45907b",
+        "title": "Search for Blog Posts: Locate the search input field",
+        "severity": "major",
+        "affectedFlow": "Search for Blog Posts",
+        "reproSteps": [
+          "Open https://irfanahmad.in/",
+          "Locate the search input field"
+        ],
+        "observed": "Wait on placeholder:Type to search failed: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[…",
+        "expected": "The search input is visible on the page.",
+        "evidence": {
+          "screenshots": [],
+          "consoleErrors": [],
+          "networkFailures": []
+        },
+        "triageNotes": "The runner attempted a wait on Type to search. Underlying error: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[2m    16 × locator resolved to hidden <in."
+      }
+    ],
+    "stats": {
+      "flowsTotal": 5,
+      "flowsPassed": 1,
+      "flowsFailed": 4,
+      "stepsTotal": 10,
+      "stepsPassed": 3,
+      "stepsFailed": 1,
+      "bugsCritical": 0,
+      "bugsMajor": 1,
+      "bugsMinor": 0
+    }
+  }
+}

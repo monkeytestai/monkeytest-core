@@ -21,10 +21,10 @@ export default defineConfig({
     ],
     ['meta', { property: 'og:title', content: 'MonkeyTest Core — AI exploratory testing for any web app' }],
     ['meta', { property: 'og:description', content: 'An open-source AI agent that uses your site like a real user and reports bugs. Playwright + your favourite LLM.' }],
-    ['meta', { property: 'og:image', content: 'https://docs.monkeytest.ai/hero.png' }],
+    ['meta', { property: 'og:image', content: 'https://docs.monkeytest.ai/hero.jpg' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { name: 'twitter:image', content: 'https://docs.monkeytest.ai/hero.png' }],
+    ['meta', { name: 'twitter:image', content: 'https://docs.monkeytest.ai/hero.jpg' }],
   ],
 
   themeConfig: {
@@ -34,7 +34,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
       { text: 'LLMs', link: '/guide/llm-providers', activeMatch: '/guide/llm-' },
       { text: 'Reference', link: '/reference/overview', activeMatch: '/reference/' },
-      { text: 'GitHub', link: 'https://github.com/monkeytest-ai/monkeytest-core' },
+      { text: 'GitHub', link: 'https://github.com/monkeytestai/monkeytest-core' },
       { text: 'MonkeyTest Cloud', link: 'https://monkeytest.ai' },
     ],
 
@@ -91,7 +91,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/monkeytest-ai/monkeytest-core' },
+      { icon: 'github', link: 'https://github.com/monkeytestai/monkeytest-core' },
     ],
 
     footer: {
@@ -105,7 +105,7 @@ export default defineConfig({
 
     editLink: {
       pattern:
-        'https://github.com/monkeytest-ai/monkeytest-core/edit/main/docs/:path',
+        'https://github.com/monkeytestai/monkeytest-core/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },

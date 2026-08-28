@@ -103,7 +103,7 @@ export async function runPlan(
       // auth_required flows aren't currently runnable — record a neat
       // "blocked: needs credentials" entry instead of erroring out.
       if (flow.kind === 'auth_required'){
-        const skipped = skippedFlowResult(flow, 'Skipped: flow requires credentials we do not have.');
+        const skipped = skippedFlowResult(flow, 'Skipped: this journey needs an account. Login-path testing is available on Chimp and Gorilla plans.');
         flows.push(skipped);
         opts.onEvent?.({ type: 'flow.complete', flowId: flow.id, result: skipped });
         events.emit({
@@ -502,8 +502,10 @@ Locator guidance:
   - For text: target is the visible text.
   - For label: target is the form label text.
   - For placeholder: target is the input placeholder text.
+  - If the control is not in the skeleton, use "noop" rather than guessing a selector.
   - Never invent selectors, search boxes, or exact page titles. Use only elements visible in the skeleton.
   - Do not turn page-title expectations into bugs; exploratory users observe what loaded.
+  - If the step asks to log in, enter OTP, or create an account, use "noop".
 
 Context:
   Flow:           ${flow.name} (${flow.kind})
@@ -837,7 +839,7 @@ function emptyRun(plan: TestPlan, startedAt: string): RunResult {
     flows: [],
     bugs: [],
     stats: {
-      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0,
+      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0,
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },
@@ -857,6 +859,7 @@ function aggregateStats(flows: FlowResult[]): RunResult['stats'] {
     flowsTotal: flows.length,
     flowsPassed: flows.filter(f => f.status === 'passed').length,
     flowsFailed: flows.filter(f => f.status === 'failed' || f.status === 'error').length,
+    flowsBlocked: flows.filter(f => f.status === 'blocked').length,
     stepsTotal, stepsPassed, stepsFailed,
     bugsCritical: 0, bugsMajor: 0, bugsMinor: 0, // filled in by the triager
   };

@@ -1,0 +1,317 @@
+{
+  "schema": 1,
+  "createdAt": "2026-05-24T08:23:26.657Z",
+  "engine": "monkeytest-core@0.3",
+  "id": "2026-05-24T08-23-26Z",
+  "planRef": {
+    "path": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/plan.json",
+    "createdAt": "2026-05-24T08:23:26.657Z"
+  },
+  "run": {
+    "startUrl": "https://irfanahmad.in",
+    "startedAt": "2026-05-24T08:21:37.507Z",
+    "finishedAt": "2026-05-24T08:23:26.655Z",
+    "flows": [
+      {
+        "flowId": "navigation-menu",
+        "name": "Main Navigation Menu",
+        "description": "Verify that the main navigation links (About, Projects, Contact) are functional and load their respective pages.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'About' link in the navigation menu",
+            "expectation": "The About page loads, displaying the professional biography.",
+            "status": "passed",
+            "observation": "Clicked text:About.",
+            "tool": "click",
+            "target": "About",
+            "durationMs": 1016,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigation-menu-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Projects' link in the navigation menu",
+            "expectation": "The Projects page loads, displaying the portfolio of apps and tools.",
+            "status": "passed",
+            "observation": "Clicked text:Projects.",
+            "tool": "click",
+            "target": "Projects",
+            "durationMs": 1267,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigation-menu-step-02-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Contact' link in the navigation menu",
+            "expectation": "The Contact page loads, displaying the contact form.",
+            "status": "passed",
+            "observation": "Clicked text:Contact.",
+            "tool": "click",
+            "target": "Contact",
+            "durationMs": 2260,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigation-menu-step-03-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              },
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 6282,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigation-menu.webm"
+      },
+      {
+        "flowId": "search-posts",
+        "name": "Search Blog Posts",
+        "description": "Verify that the search functionality allows users to search for technical topics like Cypress.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the search input field on the page",
+            "expectation": "The search input is visible and focusable.",
+            "status": "skipped",
+            "observation": "Fill on placeholder:Type to search could not be completed by the agent (locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first()\u001b[22m\n\u001b[2m    - locator res…). Treated as inconclusive rather than a product bug.",
+            "tool": "fill",
+            "target": "Type to search",
+            "durationMs": 23100,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-posts-step-01-skipped.png"
+          },
+          {
+            "index": 2,
+            "action": "Type 'Cypress' into the search input and submit the search",
+            "expectation": "The search results page or filtered view updates to show relevant posts.",
+            "status": "skipped",
+            "observation": "Fill on placeholder:Type to search could not be completed by the agent (locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first()\u001b[22m\n\u001b[2m    - locator res…). Treated as inconclusive rather than a product bug.",
+            "tool": "fill",
+            "target": "Type to search",
+            "durationMs": 16967,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-posts-step-02-skipped.png"
+          }
+        ],
+        "durationMs": 43119,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-posts.webm"
+      },
+      {
+        "flowId": "contact-form-fill",
+        "name": "Contact Form Interaction",
+        "description": "Verify that a user can fill out the contact form fields.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/contact/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the contact form fields on the page",
+            "expectation": "Form inputs for name, email, and message are visible.",
+            "status": "passed",
+            "observation": "Confirmed placeholder:Full name is visible.",
+            "tool": "wait",
+            "target": "Full name",
+            "durationMs": 1470,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-fill-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Fill in mock values for name, email, and message",
+            "expectation": "The inputs accept the text without errors.",
+            "status": "skipped",
+            "observation": "Could not interpret this step automatically ([gemini:gemini-flash-lite-latest · runner.resolveAction] response did not match schema: [\n  {\n    \"code\": \"invalid_type\").",
+            "durationMs": 2593,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-fill-step-02-skipped.png"
+          },
+          {
+            "index": 3,
+            "action": "Verify the 'Send Message' button is visible and interactive",
+            "expectation": "The button is enabled and ready for submission.",
+            "status": "passed",
+            "observation": "Observed \"Send Message\" on the page.",
+            "tool": "assert_text",
+            "target": "Send Message",
+            "durationMs": 10615,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-fill-step-03-passed.png"
+          }
+        ],
+        "durationMs": 16907,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-fill.webm"
+      },
+      {
+        "flowId": "newsletter-subscription",
+        "name": "Newsletter Subscription Input",
+        "description": "Verify that the newsletter subscription form accepts an email address.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the newsletter subscription email input field",
+            "expectation": "The input field is visible.",
+            "status": "passed",
+            "observation": "Confirmed placeholder:Your email address is visible.",
+            "tool": "wait",
+            "target": "Your email address",
+            "durationMs": 13832,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-newsletter-subscription-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Enter a mock email address 'testuser@example.com'",
+            "expectation": "The input field displays the entered email.",
+            "status": "passed",
+            "observation": "Typed \"testuser@example.com\" into placeholder:Your email address.",
+            "tool": "fill",
+            "target": "Your email address",
+            "durationMs": 15918,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-newsletter-subscription-step-02-passed.png"
+          },
+          {
+            "index": 3,
+            "action": "Verify the 'Subscribe' button is visible and clickable",
+            "expectation": "The button is active and ready to submit.",
+            "status": "passed",
+            "observation": "Confirmed role:button:Subscribe is visible.",
+            "tool": "wait",
+            "target": "button:Subscribe",
+            "durationMs": 1984,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-newsletter-subscription-step-03-passed.png"
+          }
+        ],
+        "durationMs": 33042,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-newsletter-subscription.webm"
+      },
+      {
+        "flowId": "archive-navigation",
+        "name": "Yearly and Monthly Archive Navigation",
+        "description": "Verify that users can toggle between the Yearly and Monthly blog archives.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/monthly-archive/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Verify the monthly archive list is visible on the page",
+            "expectation": "Chronological monthly posts are displayed.",
+            "status": "passed",
+            "observation": "Observed \"Comprehensive Logging and Reporting in Cypress (Part 3)\" on the page.",
+            "tool": "assert_text",
+            "target": "Comprehensive Logging and Reporting in Cypress (Part 3)",
+            "durationMs": 973,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Yearly View' link",
+            "expectation": "The Yearly Archive page loads successfully.",
+            "status": "passed",
+            "observation": "Clicked text:Yearly View.",
+            "tool": "click",
+            "target": "Yearly View",
+            "durationMs": 2314,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation-step-02-passed.png"
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Monthly View' link",
+            "expectation": "The page navigates back to the Monthly Archive view.",
+            "status": "passed",
+            "observation": "Clicked text:Monthly View.",
+            "tool": "click",
+            "target": "Monthly View",
+            "durationMs": 1017,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation-step-03-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              },
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 5606,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation.webm"
+      },
+      {
+        "flowId": "tag-filtering",
+        "name": "Filter Posts by Tag",
+        "description": "Verify that clicking a tag filters and displays posts associated with that tag.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/tags/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the tag list on the tags page",
+            "expectation": "Tags like 'test-automation' are visible.",
+            "status": "passed",
+            "observation": "Observed \"test-automation\" on the page.",
+            "tool": "assert_text",
+            "target": "test-automation",
+            "durationMs": 1162,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-tag-filtering-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click on the 'test-automation' tag link",
+            "expectation": "The page updates to show posts filtered by the selected tag.",
+            "status": "passed",
+            "observation": "Clicked text:test-automation.",
+            "tool": "click",
+            "target": "test-automation",
+            "durationMs": 1307,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-tag-filtering-step-02-passed.png"
+          }
+        ],
+        "durationMs": 3916,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-tag-filtering.webm"
+      }
+    ],
+    "bugs": [],
+    "stats": {
+      "flowsTotal": 6,
+      "flowsPassed": 6,
+      "flowsFailed": 0,
+      "stepsTotal": 16,
+      "stepsPassed": 13,
+      "stepsFailed": 0,
+      "bugsCritical": 0,
+      "bugsMajor": 0,
+      "bugsMinor": 0
+    }
+  }
+}

@@ -7,10 +7,10 @@
   "homepage": "https://docs.monkeytest.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monkeytest-ai/monkeytest-core.git"
+    "url": "git+https://github.com/monkeytestai/monkeytest-core.git"
   },
   "bugs": {
-    "url": "https://github.com/monkeytest-ai/monkeytest-core/issues"
+    "url": "https://github.com/monkeytestai/monkeytest-core/issues"
   },
   "keywords": [
     "monkeytest",

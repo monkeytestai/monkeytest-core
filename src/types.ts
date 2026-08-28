@@ -17,6 +17,29 @@ export type LLMProvider =
   | 'groq'
   | 'openai_compatible';
 
+/**
+ * Token accounting for a single completed LLM call, tagged with the model
+ * that served it. `LLM.lastUsage` only ever holds the most recent call, so
+ * hosts that need a per-run total should collect these instead.
+ */
+export interface LLMUsageEvent {
+  /** Provider and model, eg "openai:gpt-4o-mini". */
+  provider: string;
+  /** Call site, eg "planner.designFlows". */
+  label?: string;
+  /** Total input tokens billed for this call (provider-reported). */
+  inputTokens?: number;
+  /** Of `inputTokens`, how many were served from the prompt cache. */
+  cachedInputTokens?: number;
+  /** Output / completion tokens. */
+  outputTokens?: number;
+  /** Whether this call wrote new content into the prompt cache. */
+  cacheWrite?: boolean;
+}
+
+/** Called once per completed LLM call. Must never throw. */
+export type LLMUsageSink = (usage: LLMUsageEvent) => void;
+
 export interface LLMConfig {
   provider: LLMProvider;
   model?: string;
@@ -29,6 +52,12 @@ export interface LLMConfig {
   baseURL?: string;
   /** Sampling temperature override (default 0.2 — JSON tasks). */
   temperature?: number;
+  /**
+   * Optional callback invoked after every successful call, so a host can sum
+   * token spend across a whole run. Pass the same sink to every phase's config
+   * to get a single run-wide total.
+   */
+  onUsage?: LLMUsageSink;
 }
 
 /**
@@ -87,6 +116,12 @@ export interface SiteMap {
   siteType: string;
   /** One-paragraph plain-English description of the whole site. */
   summary: string;
+  /** Brand / product name if the crawl made it obvious. */
+  productName?: string;
+  /** Real anonymous-visitor journeys the planner should prefer. */
+  publicJourneys?: string[];
+  /** Login / signup / OTP surfaces noticed but not entered. */
+  authSurfaces?: string[];
   pages: SiteMapPage[];
   /** Pages the explorer noticed but did not actually visit. */
   pendingUrls: string[];
@@ -211,6 +246,8 @@ export interface RunResult {
     flowsTotal: number;
     flowsPassed: number;
     flowsFailed: number;
+    /** Login / credential flows that were not executed. */
+    flowsBlocked: number;
     stepsTotal: number;
     stepsPassed: number;
     stepsFailed: number;

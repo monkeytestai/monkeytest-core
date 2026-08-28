@@ -88,20 +88,27 @@ export async function plan(
   //                     toggle, schema reminder). Tiny, cheap to re-send.
   //
   // Order matters: providers cache by *prefix*, so the dynamic bit goes LAST.
-  const system = `You are a senior QA engineer turning an exploratory crawl into a concrete test plan.
+  const system = `You are a senior QA architect. You have just been handed a structured crawl of a real website. Your job is to design a small set of high-quality user journeys — the kind a staff engineer would put on a release checklist — not a pile of brittle UI assertions.
 
-General principles:
-  - Behave like an exploratory user, not a brittle unit test.
-  - Prefer actions and observations over exact assertions.
-  - Do NOT invent functionality. If the crawl did not show a search box, form, menu, or button, do not create a flow for it.
-  - Do NOT assert exact document titles such as "Show | Hacker News" — titles vary and are not user-critical.
-  - Each flow must be runnable by a Playwright agent with no human input.
+How to think:
+  1. First understand the product: who is the visitor, what jobs can they complete without an account, what is marketing vs. application vs. legal.
+  2. Then pick DISTINCT journeys that protect the most user value (apply, shop, compare, contact, read a key page, complete a public form).
+  3. Each flow must be a realistic anonymous-visitor path using ONLY controls the crawl actually saw.
+
+Hard rules:
+  - Do NOT invent search boxes, menus, buttons, forms, or pages the crawl did not show.
+  - Do NOT assert exact document titles. Titles vary and are not user-critical.
+  - Prefer visible labels from the crawl ("Apply now", "Check eligibility") over CSS selectors.
+  - Steps must be executable by a Playwright agent with no human, OTP, email, or password.
+  - One goal per flow. Do not duplicate the same journey with different wording.
+  - Prefer 4–7 concrete steps. Skip "look at the page" filler.
+  - severityIfFails = critical only if a real user cannot complete a core job (apply, pay, submit, checkout). Visual polish is minor.
 
 Each flow has the shape:
   {
     "id": kebab-case unique within the plan, e.g. "homepage-cta",
     "name": short human title (max 80 chars),
-    "description": one sentence of what this flow tests,
+    "description": one sentence of what this flow tests and why it matters,
     "kind": "happy_path" | "edge_case" | "auth_required" | "destructive" | "accessibility" | "visual",
     "startUrl": absolute URL — usually one of the visited pages,
     "steps": array of { "action": "...", "expectation"?: "..." }, 1–8 items,
@@ -109,9 +116,17 @@ Each flow has the shape:
     "severityIfFails": "critical" | "major" | "minor"
   }`;
 
+  const journeys = (siteMap.publicJourneys || []).filter(Boolean);
+  const authSurfaces = (siteMap.authSurfaces || []).filter(Boolean);
+
   const cacheable = `Site:        ${siteMap.startUrl}
+Product:     ${siteMap.productName || '(not named)'}
 Site type:   ${siteMap.siteType}
 Description: ${siteMap.summary}
+Public journeys a visitor can complete:
+${journeys.length ? journeys.map(j => `  - ${j}`).join('\n') : '  (none inferred — infer carefully from pages below)'}
+Login / account surfaces noticed (do not enter unless instructed):
+${authSurfaces.length ? authSurfaces.map(s => `  - ${s}`).join('\n') : '  (none)'}
 
 Pages explored:
 ${siteMap.pages.map(p => `
@@ -126,17 +141,16 @@ ${siteMap.pages.map(p => `
   const prompt = `Now produce the test plan.
 
 Per-call constraints:
-  - Produce AT MOST ${maxFlows} flows total. Prioritise flows that protect the most user value.
-  - Use only data the explorer surfaced or that a real anonymous visitor could reasonably provide
-    (a generic search term, browsing a category, opening the contact form).
+  - Produce AT MOST ${maxFlows} flows total. Fill the quota with executable public journeys first.
+  - Every step must name a control or content that appears in the crawl above.
   - ${includeAuth
-      ? 'You MAY include flows for auth-gated pages — mark them kind="auth_required" so the runner can flag them as "needs credentials" instead of failing.'
-      : 'Skip auth-gated pages entirely. Do NOT include flows that require credentials we do not have.'}
+      ? 'You MAY add at most one kind="auth_required" flow that reaches a login/OTP wall and then stops. Do not invent credentials. The runner will skip executing it.'
+      : 'Do NOT include login, sign-in, sign-up, register, OTP, password-reset, or any flow that needs an account. Skip auth-gated pages. Fill the plan with public journeys only.'}
 
 Reply with JSON:
 {
   "flows": [ ... ],
-  "notes": "(optional caveats)"
+  "notes": "(optional: what you understood about the site and what you deliberately skipped)"
 }`;
 
   const result = await llm.generateJSON({
@@ -147,9 +161,10 @@ Reply with JSON:
     schema: PlanSchema,
   });
 
-  // Final pass: dedupe IDs and re-shape into the public TestPlan type.
+  // Final pass: dedupe IDs, drop login journeys when the host asked us not
+  // to plan them (LLMs still sneak them in), and re-shape into TestPlan.
   const seen = new Set<string>();
-  const flows: TestFlow[] = result.flows.map((f, i) => {
+  let flows: TestFlow[] = result.flows.map((f, i) => {
     let id = f.id;
     if (seen.has(id)){
       id = `${id}-${i + 1}`;
@@ -157,6 +172,13 @@ Reply with JSON:
     seen.add(id);
     return { ...f, id };
   });
+
+  if (!includeAuth){
+    const publicOnly = flows.filter(f => !looksLikeLoginFlow(f));
+    if (publicOnly.length > 0) flows = publicOnly;
+  }
+
+  flows = flows.slice(0, maxFlows);
 
   // Surface prompt-cache stats so the SaaS can display "saved $X" tooltips.
   const usage = llm.lastUsage;
@@ -177,4 +199,10 @@ Reply with JSON:
     notes: result.notes,
   };
 
+}
+
+function looksLikeLoginFlow(f: { kind: string; name: string; description: string; steps: { action: string }[] }): boolean {
+  if (f.kind === 'auth_required') return true;
+  const text = [f.name, f.description, ...f.steps.map(s => s.action)].join(' ').toLowerCase();
+  return /\b(log\s?in|sign\s?in|sign\s?up|register|create an account|otp|one[- ]time (code|password)|password reset|forgot password|verify (your )?(phone|email)|enter (your )?otp)\b/.test(text);
 }

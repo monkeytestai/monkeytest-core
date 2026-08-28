@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/public/hero.png" alt="MonkeyTest Core — an AI agent that uses your site like a real user and reports the bugs" width="820" />
+  <img src="docs/public/hero.jpg" alt="MonkeyTest Core — an AI agent that uses your site like a real user and reports the bugs" width="820" />
 </p>
 
 <h1 align="center">MonkeyTest Core</h1>
@@ -13,8 +13,8 @@
   <a href="https://www.npmjs.com/package/@mtai/monkeytest-core"><img src="https://img.shields.io/npm/v/@mtai/monkeytest-core?color=7c3aed" alt="npm" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+" /></a>
   <a href="https://docs.monkeytest.ai"><img src="https://img.shields.io/badge/docs-docs.monkeytest.ai-7c3aed" alt="Documentation" /></a>
-  <a href="https://github.com/monkeytest-ai/monkeytest-core/actions"><img src="https://img.shields.io/badge/CI-passing-22c55e" alt="CI" /></a>
-  <a href="https://github.com/monkeytest-ai/monkeytest-core/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64748b" alt="AGPL-3.0" /></a>
+  <a href="https://github.com/monkeytestai/monkeytest-core/actions"><img src="https://img.shields.io/badge/CI-passing-22c55e" alt="CI" /></a>
+  <a href="https://github.com/monkeytestai/monkeytest-core/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64748b" alt="AGPL-3.0" /></a>
 </p>
 
 <p align="center">

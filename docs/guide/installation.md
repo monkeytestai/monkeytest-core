@@ -37,7 +37,7 @@ The package ships as ESM with TypeScript declarations and a single binary (`monk
 ## From source
 
 ```bash
-git clone https://github.com/monkeytest-ai/monkeytest-core.git
+git clone https://github.com/monkeytestai/monkeytest-core.git
 cd monkeytest-core
 npm install
 npx playwright install chromium

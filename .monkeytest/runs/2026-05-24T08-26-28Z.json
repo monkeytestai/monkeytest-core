@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "createdAt": "2026-05-24T08:26:28.094Z",
+  "engine": "monkeytest-core@0.3",
+  "id": "2026-05-24T08-26-28Z",
+  "planRef": {
+    "path": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/plan.json",
+    "createdAt": "2026-05-24T08:26:28.094Z"
+  },
+  "run": {
+    "startUrl": "https://flipkart.com",
+    "startedAt": "2026-05-24T08:24:29.626Z",
+    "finishedAt": "2026-05-24T08:26:28.091Z",
+    "flows": [
+      {
+        "flowId": "search-product",
+        "name": "Search for a product from the homepage",
+        "description": "Verify that users can search for products using the main search bar.",
+        "kind": "happy_path",
+        "startUrl": "https://flipkart.com/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click on the 'Search products' input field.",
+            "expectation": "The search input is focused and ready for typing.",
+            "status": "skipped",
+            "observation": "Click on placeholder:Search for Products, Brands and More could not be completed by the agent (locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Search for Products, Brands and More').first()\u001b[22…). Treated as inconclusive rather than a product bug.",
+            "tool": "click",
+            "target": "Search for Products, Brands and More",
+            "durationMs": 16440,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-product-step-01-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              },
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "action": "Type 'laptop' into the search input field.",
+            "expectation": "The text 'laptop' is visible in the search input.",
+            "status": "skipped",
+            "observation": "Fill on placeholder:Search for Products, Brands and More could not be completed by the agent (locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Search for Products, Brands and More').first()\u001b[22m\n). Treated as inconclusive rather than a product bug.",
+            "tool": "fill",
+            "target": "Search for Products, Brands and More",
+            "durationMs": 16155,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-product-step-02-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              },
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Search Icon' button.",
+            "expectation": "The page navigates to the search results page displaying relevant products.",
+            "status": "skipped",
+            "observation": "Click on button[aria-label='Search'] could not be completed by the agent (locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[aria-label=\\'Search\\']').first()\u001b[22m\n). Treated as inconclusive rather than a product bug.",
+            "tool": "click",
+            "target": "button[aria-label='Search']",
+            "durationMs": 16017,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-product-step-03-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 55601,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-search-product.webm"
+      },
+      {
+        "flowId": "view-cart",
+        "name": "Navigate to the shopping cart",
+        "description": "Verify that users can access their shopping cart from the homepage.",
+        "kind": "happy_path",
+        "startUrl": "https://flipkart.com/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click on the 'Cart' link.",
+            "expectation": "The application navigates to the cart page.",
+            "status": "skipped",
+            "observation": "Click on text:Cart could not be completed by the agent (locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('Cart').first()\u001b[22m\n\u001b[2m    - locator resolved to <span c…). Treated as inconclusive rather than a product bug.",
+            "tool": "click",
+            "target": "Cart",
+            "durationMs": 16100,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-view-cart-step-01-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              },
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 19606,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-view-cart.webm"
+      },
+      {
+        "flowId": "login-otp-request",
+        "name": "Initiate login via OTP",
+        "description": "Verify that the login modal opens and accepts a phone number to request an OTP.",
+        "kind": "auth_required",
+        "startUrl": "https://flipkart.com/",
+        "status": "blocked",
+        "failureReason": "Skipped: flow requires credentials we do not have.",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click on the 'Login' button.",
+            "expectation": "The login modal or login page appears.",
+            "status": "blocked",
+            "observation": "Skipped: flow requires credentials we do not have."
+          },
+          {
+            "index": 2,
+            "action": "Enter a valid 10-digit mobile number into the input field.",
+            "expectation": "The mobile number is entered successfully.",
+            "status": "blocked",
+            "observation": "Skipped: flow requires credentials we do not have."
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Request OTP' button.",
+            "expectation": "An OTP is requested, and the interface prompts for the OTP code.",
+            "status": "blocked",
+            "observation": "Skipped: flow requires credentials we do not have."
+          }
+        ],
+        "durationMs": 0,
+        "bugIds": []
+      },
+      {
+        "flowId": "navigate-flights",
+        "name": "Navigate to Flipkart Flights",
+        "description": "Verify that the Flipkart Flights link redirects users to the flight booking section.",
+        "kind": "happy_path",
+        "startUrl": "https://flipkart.com/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click on the 'Flipkart Flights' link.",
+            "expectation": "The page redirects to the flight booking portal.",
+            "status": "skipped",
+            "observation": "Click on text:Flipkart Flights: Book Your Next Getaway Effortlessly could not be completed by the agent (locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('Flipkart Flights: Book Your Next Getaway Effortlessly').f…). Treated as inconclusive rather than a product bug.",
+            "tool": "click",
+            "target": "Flipkart Flights: Book Your Next Getaway Effortlessly",
+            "durationMs": 17061,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigate-flights-step-01-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              },
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 23063,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigate-flights.webm"
+      },
+      {
+        "flowId": "navigate-gift-cards",
+        "name": "Navigate to Gift Cards page",
+        "description": "Verify that the Gift Cards link redirects users to the gift cards store.",
+        "kind": "happy_path",
+        "startUrl": "https://flipkart.com/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click on the 'Gift Cards' link.",
+            "expectation": "The page redirects to the Gift Cards section.",
+            "status": "skipped",
+            "observation": "Click on text:Gift Cards could not be completed by the agent (locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('Gift Cards').first()\u001b[22m\n). Treated as inconclusive rather than a product bug.",
+            "tool": "click",
+            "target": "Gift Cards",
+            "durationMs": 16361,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigate-gift-cards-step-01-skipped.png",
+            "consoleErrors": [
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              },
+              {
+                "message": "The resource https://rukminim2.flixcart.com/fk-p-flap/480/234/image/da35ee08bbd1133d.jpg?q=20 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+                "level": "warning",
+                "url": "https://www.flipkart.com/",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 19863,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-navigate-gift-cards.webm"
+      }
+    ],
+    "bugs": [],
+    "stats": {
+      "flowsTotal": 5,
+      "flowsPassed": 4,
+      "flowsFailed": 0,
+      "stepsTotal": 9,
+      "stepsPassed": 0,
+      "stepsFailed": 0,
+      "bugsCritical": 0,
+      "bugsMajor": 0,
+      "bugsMinor": 0
+    }
+  }
+}

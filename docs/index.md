@@ -6,7 +6,7 @@ hero:
   text: An AI agent that uses your site like a real user — and reports the bugs.
   tagline: Open-source. Playwright + your favourite LLM. Zero glue code. Built for devs who'd rather ship than write yet another Selenium script.
   image:
-    src: /hero.png
+    src: /hero.jpg
     alt: An open library of intelligence with a stylised AI monkey agent inspecting a webpage and pinning a bug
   actions:
     - theme: brand
@@ -17,7 +17,7 @@ hero:
       link: /guide/architecture
     - theme: alt
       text: GitHub
-      link: https://github.com/monkeytest-ai/monkeytest-core
+      link: https://github.com/monkeytestai/monkeytest-core
 
 features:
   - title: Drop-in, not framework

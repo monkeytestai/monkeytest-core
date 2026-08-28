@@ -1,104 +1,103 @@
 {
-  "startUrl": "https://irfanahmad.in/",
-  "siteType": "blog",
-  "flows": [
-    {
-      "id": "homepage-navigation",
-      "name": "Homepage Navigation Links",
-      "description": "Verifies that primary navigation links on the homepage are functional and lead to the correct sections.",
-      "kind": "happy_path",
-      "startUrl": "https://irfanahmad.in/",
-      "steps": [
-        {
-          "action": "click link 'Blogs'"
-        },
-        {
-          "action": "wait for url to contain '/blog'"
-        },
-        {
-          "action": "click link 'About'"
-        },
-        {
-          "action": "wait for url to contain '/about'"
-        }
-      ],
-      "expectation": "The user is successfully navigated to the Blogs and About pages when clicking the respective navigation links.",
-      "severityIfFails": "critical"
-    },
-    {
-      "id": "search-functionality",
-      "name": "Search Functionality",
-      "description": "Tests the search input field to ensure it accepts input and triggers a search action.",
-      "kind": "happy_path",
-      "startUrl": "https://irfanahmad.in/",
-      "steps": [
-        {
-          "action": "fill input 'Type to search' with 'Cypress'"
-        },
-        {
-          "action": "press 'Enter'"
-        },
-        {
-          "action": "wait for search results container to be visible"
-        }
-      ],
-      "expectation": "The search functionality returns relevant results or a results page when a valid query is entered.",
-      "severityIfFails": "major"
-    },
-    {
-      "id": "newsletter-subscription-form",
-      "name": "Newsletter Subscription Form",
-      "description": "Checks that the newsletter subscription form is present and interactive.",
-      "kind": "happy_path",
-      "startUrl": "https://irfanahmad.in/",
-      "steps": [
-        {
-          "action": "click input 'Newsletter subscription'"
-        },
-        {
-          "action": "fill input 'Newsletter subscription' with 'test@example.com'"
-        },
-        {
-          "action": "click button 'Subscribe'"
-        }
-      ],
-      "expectation": "The subscription form accepts an email address and triggers a submission action without crashing.",
-      "severityIfFails": "major"
-    },
-    {
-      "id": "blog-post-access",
-      "name": "Access Blog Post",
-      "description": "Verifies that a user can click on a blog post title and load the full article page.",
-      "kind": "happy_path",
-      "startUrl": "https://irfanahmad.in/",
-      "steps": [
-        {
-          "action": "click link 'Comprehensive Logging and Reporting in Cypress (Part 3)'"
-        },
-        {
-          "action": "wait for element 'article' to be visible"
-        }
-      ],
-      "expectation": "The blog post content loads successfully after clicking the post title.",
-      "severityIfFails": "critical"
-    },
-    {
-      "id": "contact-page-load",
-      "name": "Contact Page Accessibility",
-      "description": "Ensures the contact page or link is reachable from the main navigation.",
-      "kind": "happy_path",
-      "startUrl": "https://irfanahmad.in/",
-      "steps": [
-        {
-          "action": "click link 'Contact'"
-        },
-        {
-          "action": "wait for page to load"
-        }
-      ],
-      "expectation": "The contact page or contact section is rendered correctly without 404 errors.",
-      "severityIfFails": "major"
-    }
-  ],
-  "notes": "The site appears to be a static-generated blog; flows focus on navigation and basic interactivity. No auth-gated flows were identified as the site is public-facing."
+  "schema": 1,
+  "createdAt": "2026-08-20T08:07:18.544Z",
+  "engine": "monkeytest-core@0.3",
+  "plan": {
+    "startUrl": "https://google.com",
+    "siteType": "marketing site",
+    "flows": [
+      {
+        "id": "homepage-standard-search",
+        "name": "Perform basic web search from homepage",
+        "description": "Verify that entering a search query into the search form and clicking Google Search triggers search execution.",
+        "kind": "happy_path",
+        "startUrl": "https://google.com/",
+        "steps": [
+          {
+            "action": "Focus the search input inside 'Google Search Form' and type 'Playwright testing'",
+            "expectation": "The search term appears in the search input box"
+          },
+          {
+            "action": "Click the 'Google Search' button",
+            "expectation": "The page navigates to the search results page displaying relevant web results"
+          }
+        ],
+        "expectation": "Search query is submitted and relevant search results are presented to the user.",
+        "severityIfFails": "critical"
+      },
+      {
+        "id": "homepage-feeling-lucky",
+        "name": "Navigate using I'm Feeling Lucky button",
+        "description": "Test the 'I'm Feeling Lucky' interaction from the search homepage.",
+        "kind": "happy_path",
+        "startUrl": "https://google.com/",
+        "steps": [
+          {
+            "action": "Click the 'I'm Feeling Lucky' button",
+            "expectation": "The browser navigates directly to Google Doodles or a featured destination page"
+          }
+        ],
+        "expectation": "User is redirected to the featured destination page without encountering an error.",
+        "severityIfFails": "major"
+      },
+      {
+        "id": "homepage-signin-navigation",
+        "name": "Navigate to Google account sign-in",
+        "description": "Ensure the Sign in link correctly directs visitors to the authentication flow.",
+        "kind": "auth_required",
+        "startUrl": "https://google.com/",
+        "steps": [
+          {
+            "action": "Click the 'Sign in' link",
+            "expectation": "The browser navigates to the Google account sign-in interface"
+          }
+        ],
+        "expectation": "Sign-in page loads with input fields for user credentials.",
+        "severityIfFails": "major"
+      },
+      {
+        "id": "how-search-works-section-navigation",
+        "name": "Navigate section tabs on How Search Works page",
+        "description": "Verify that navigation links on the How Search Works page switch between key informational sections.",
+        "kind": "happy_path",
+        "startUrl": "https://google.com/search/howsearchworks/?fg=1",
+        "steps": [
+          {
+            "action": "Click the 'Our approach' link",
+            "expectation": "Page scrolls or transitions to display the approach section"
+          },
+          {
+            "action": "Click the 'How Search works' link",
+            "expectation": "Page updates to present details on search mechanisms and algorithms"
+          },
+          {
+            "action": "Click the 'Features' link",
+            "expectation": "Features section content is visible and in view"
+          }
+        ],
+        "expectation": "All section tabs navigate smoothly to their respective content areas without navigation errors.",
+        "severityIfFails": "major"
+      },
+      {
+        "id": "how-search-works-learn-more-action",
+        "name": "Interact with informational call-to-actions",
+        "description": "Verify that informative buttons on the How Search Works page provide deeper educational context.",
+        "kind": "happy_path",
+        "startUrl": "https://google.com/search/howsearchworks/?fg=1",
+        "steps": [
+          {
+            "action": "Click the 'Learn more' button",
+            "expectation": "Detailed explanatory content or a related subpage opens"
+          },
+          {
+            "action": "Return or scroll to the media section and click 'Watch video'",
+            "expectation": "An embedded video player or media viewer is presented"
+          }
+        ],
+        "expectation": "Educational interactive elements open and display their respective media or text content.",
+        "severityIfFails": "minor"
+      }
+    ],
+    "notes": "Search results may vary by geographic region, IP location, and user-agent settings."
+  }
 }

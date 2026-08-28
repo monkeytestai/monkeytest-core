@@ -33,7 +33,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { Mistral } from '@mistralai/mistralai';
 import { z } from 'zod';
-import type { LLMConfig } from '../types.js';
+import type { LLMConfig, LLMUsageSink } from '../types.js';
 
 export interface GenerateJSONOptions<T> {
   /** System-level guidance prepended to every prompt. */
@@ -84,15 +84,44 @@ export interface LLM {
   generateJSON<T>(opts: GenerateJSONOptions<T>): Promise<T>;
 }
 
+/** Shape shared by every provider class, so usage recording can be reused. */
+interface UsageRecorder {
+  lastUsage?: LLMUsage;
+  readonly providerLabel: string;
+  readonly onUsage?: LLMUsageSink;
+}
+
+/**
+ * Store the usage from a completed call and forward it to the host's sink.
+ * A misbehaving sink must never take a run down, so it's wrapped.
+ */
+function recordUsage(llm: UsageRecorder, usage: LLMUsage, label?: string): void {
+
+  llm.lastUsage = usage;
+
+  if (!llm.onUsage) return;
+
+  try {
+    llm.onUsage({ ...usage, provider: llm.providerLabel, label });
+  }
+  catch {
+    /* usage accounting is never worth failing a run over */
+  }
+
+}
+
 /* ── Gemini ───────────────────────────────────────────────────────────── */
 
 class GeminiLLM implements LLM {
 
   readonly providerLabel: string;
+  readonly onUsage?: LLMUsageSink;
   lastUsage?: LLMUsage;
   private readonly model: GenerativeModel;
 
   constructor(config: LLMConfig){
+
+    this.onUsage = config.onUsage;
 
     const apiKey = config.apiKey
       || process.env.GEMINI_API_KEY
@@ -133,10 +162,10 @@ class GeminiLLM implements LLM {
       // Gemini doesn't ship a managed prompt cache today; record token counts
       // when the SDK exposes them so cost dashboards still work.
       const md = (res.response as unknown as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }).usageMetadata;
-      this.lastUsage = {
+      recordUsage(this, {
         inputTokens: md?.promptTokenCount,
         outputTokens: md?.candidatesTokenCount,
-      };
+      }, label);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/404 Not Found|is not found for API version|is not supported/i.test(msg)){
@@ -164,6 +193,7 @@ class GeminiLLM implements LLM {
 class OpenAILLM implements LLM {
 
   readonly providerLabel: string;
+  readonly onUsage?: LLMUsageSink;
   lastUsage?: LLMUsage;
   private readonly client: OpenAI;
   private readonly model: string;
@@ -179,6 +209,8 @@ class OpenAILLM implements LLM {
     /** Set to false for endpoints that don't support response_format. */
     useJsonMode?: boolean;
   }){
+
+    this.onUsage = config.onUsage;
 
     const apiKey = config.apiKey
       || (opts.envApiKey ? process.env[opts.envApiKey] : undefined)
@@ -236,11 +268,11 @@ class OpenAILLM implements LLM {
             prompt_tokens_details?: { cached_tokens?: number };
           })
         | undefined;
-      this.lastUsage = {
+      recordUsage(this, {
         inputTokens: usage?.prompt_tokens,
         outputTokens: usage?.completion_tokens,
         cachedInputTokens: usage?.prompt_tokens_details?.cached_tokens,
-      };
+      }, label);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(
@@ -265,12 +297,15 @@ class OpenAILLM implements LLM {
 class AnthropicLLM implements LLM {
 
   readonly providerLabel: string;
+  readonly onUsage?: LLMUsageSink;
   lastUsage?: LLMUsage;
   private readonly client: Anthropic;
   private readonly model: string;
   private readonly temperature: number;
 
   constructor(config: LLMConfig){
+
+    this.onUsage = config.onUsage;
 
     const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
     if (!apiKey){
@@ -339,7 +374,7 @@ class AnthropicLLM implements LLM {
         cache_read_input_tokens?: number;
         cache_creation_input_tokens?: number;
       };
-      this.lastUsage = {
+      recordUsage(this, {
         inputTokens:
           (usage.input_tokens || 0)
           + (usage.cache_read_input_tokens || 0)
@@ -347,7 +382,7 @@ class AnthropicLLM implements LLM {
         cachedInputTokens: usage.cache_read_input_tokens,
         outputTokens: usage.output_tokens,
         cacheWrite: (usage.cache_creation_input_tokens || 0) > 0,
-      };
+      }, label);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(
@@ -372,12 +407,15 @@ class AnthropicLLM implements LLM {
 class MistralLLM implements LLM {
 
   readonly providerLabel: string;
+  readonly onUsage?: LLMUsageSink;
   lastUsage?: LLMUsage;
   private readonly client: Mistral;
   private readonly model: string;
   private readonly temperature: number;
 
   constructor(config: LLMConfig){
+
+    this.onUsage = config.onUsage;
 
     const apiKey = config.apiKey || process.env.MISTRAL_API_KEY;
     if (!apiKey){
@@ -419,10 +457,10 @@ class MistralLLM implements LLM {
         : '';
 
       const usage = res.usage as { promptTokens?: number; completionTokens?: number } | undefined;
-      this.lastUsage = {
+      recordUsage(this, {
         inputTokens: usage?.promptTokens,
         outputTokens: usage?.completionTokens,
-      };
+      }, label);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(

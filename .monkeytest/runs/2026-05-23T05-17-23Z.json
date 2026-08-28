@@ -1,0 +1,240 @@
+{
+  "schema": 1,
+  "createdAt": "2026-05-23T05:17:23.322Z",
+  "engine": "monkeytest-core@0.3",
+  "id": "2026-05-23T05-17-23Z",
+  "planRef": {
+    "path": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/plan.json",
+    "createdAt": "2026-05-23T05:17:23.322Z"
+  },
+  "run": {
+    "startUrl": "https://irfanahmad.in",
+    "startedAt": "2026-05-23T05:16:13.424Z",
+    "finishedAt": "2026-05-23T05:17:23.318Z",
+    "flows": [
+      {
+        "flowId": "portfolio-navigation",
+        "name": "Navigate Main Portfolio Sections",
+        "description": "Verify that a user can navigate from the homepage to the About, Projects, and Contact pages.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'About' link",
+            "expectation": "The About page loads, displaying the professional biography.",
+            "status": "passed",
+            "observation": "Clicked text:About.",
+            "tool": "click",
+            "target": "About",
+            "durationMs": 1012,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Projects' link",
+            "expectation": "The Projects page loads, displaying the portfolio of apps and websites.",
+            "status": "passed",
+            "observation": "Clicked text:Projects.",
+            "tool": "click",
+            "target": "Projects",
+            "durationMs": 2262,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-02-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "action": "Click the 'Contact' link",
+            "expectation": "The Contact page loads, displaying the contact form.",
+            "status": "passed",
+            "observation": "Clicked text:Contact.",
+            "tool": "click",
+            "target": "Contact",
+            "durationMs": 1096,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation-step-03-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              },
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 6720,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-portfolio-navigation.webm"
+      },
+      {
+        "flowId": "blog-search",
+        "name": "Search for Blog Posts",
+        "description": "Verify that the search functionality allows users to find content related to test automation.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Locate the search input field",
+            "expectation": "The search input is visible on the page.",
+            "status": "skipped",
+            "observation": "Wait on placeholder:Type to search could not be completed by the agent (locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first() to be visible\u001b[22m\n\u001b[2m…). Treated as inconclusive rather than a product bug.",
+            "tool": "wait",
+            "target": "Type to search",
+            "durationMs": 15975,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-blog-search-step-01-skipped.png"
+          },
+          {
+            "index": 2,
+            "action": "Type 'Cypress' into the search input and submit",
+            "expectation": "The search results or filtered posts matching the query are displayed.",
+            "status": "skipped",
+            "observation": "Fill on placeholder:Type to search could not be completed by the agent (locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Type to search').first()\u001b[22m\n\u001b[2m    - locator res…). Treated as inconclusive rather than a product bug.",
+            "tool": "fill",
+            "target": "Type to search",
+            "durationMs": 18707,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-blog-search-step-02-skipped.png"
+          }
+        ],
+        "durationMs": 39998,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-blog-search.webm"
+      },
+      {
+        "flowId": "explore-tags",
+        "name": "Browse Posts by Tag",
+        "description": "Verify that clicking on a tag filters and displays relevant blog posts.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/tags/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'test-automation' tag link",
+            "expectation": "The page updates to show posts associated with the 'test-automation' tag.",
+            "status": "passed",
+            "observation": "Clicked text:test-automation.",
+            "tool": "click",
+            "target": "test-automation",
+            "durationMs": 1299,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-explore-tags-step-01-passed.png"
+          }
+        ],
+        "durationMs": 3841,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-explore-tags.webm"
+      },
+      {
+        "flowId": "contact-form-check",
+        "name": "Verify Contact Form Presence",
+        "description": "Verify that the contact form is present and interactive on the Contact page.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/contact/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Verify the presence of the Contact form",
+            "expectation": "The contact form container is visible on the page.",
+            "status": "passed",
+            "observation": "Confirmed form is visible.",
+            "tool": "wait",
+            "target": "form",
+            "durationMs": 1001,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-check-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Verify the presence of the 'Send Message' button",
+            "expectation": "The submission button is visible and active.",
+            "status": "passed",
+            "observation": "Observed \"Send Message\" on the page.",
+            "tool": "assert_text",
+            "target": "Send Message",
+            "durationMs": 8379,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-check-step-02-passed.png"
+          }
+        ],
+        "durationMs": 11586,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-contact-form-check.webm"
+      },
+      {
+        "flowId": "archive-navigation",
+        "name": "Navigate Monthly and Yearly Archives",
+        "description": "Verify that users can toggle between monthly and yearly views of archived posts.",
+        "kind": "happy_path",
+        "startUrl": "https://irfanahmad.in/monthly-archive/",
+        "status": "passed",
+        "steps": [
+          {
+            "index": 1,
+            "action": "Click the 'Yearly View' link",
+            "expectation": "The yearly archive page loads successfully.",
+            "status": "passed",
+            "observation": "Clicked text:Yearly View.",
+            "tool": "click",
+            "target": "Yearly View",
+            "durationMs": 1463,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation-step-01-passed.png"
+          },
+          {
+            "index": 2,
+            "action": "Click the 'Monthly View' link",
+            "expectation": "The monthly archive page loads successfully.",
+            "status": "passed",
+            "observation": "Clicked text:Monthly View.",
+            "tool": "click",
+            "target": "Monthly View",
+            "durationMs": 4125,
+            "screenshotPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation-step-02-passed.png",
+            "consoleErrors": [
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              },
+              {
+                "message": "Failed to load resource: the server responded with a status of 404 ()",
+                "level": "error",
+                "url": "https://irfanahmad.in/images/irfan-dark-theme-logo.svg",
+                "lineNumber": 0
+              }
+            ]
+          }
+        ],
+        "durationMs": 7429,
+        "bugIds": [],
+        "videoPath": "/Users/irfan/projects/mtai/monkeytest-core/.monkeytest/shots/flow-archive-navigation.webm"
+      }
+    ],
+    "bugs": [],
+    "stats": {
+      "flowsTotal": 5,
+      "flowsPassed": 5,
+      "flowsFailed": 0,
+      "stepsTotal": 10,
+      "stepsPassed": 8,
+      "stepsFailed": 0,
+      "bugsCritical": 0,
+      "bugsMajor": 0,
+      "bugsMinor": 0
+    }
+  }
+}

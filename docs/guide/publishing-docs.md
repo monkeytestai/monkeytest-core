@@ -2,7 +2,7 @@
 
 The manual and CI/CD steps for deploying **docs.monkeytest.ai** live in the repository:
 
-👉 **[DEPLOY.md (full guide)](https://github.com/monkeytest-ai/monkeytest-core/blob/main/docs/DEPLOY.md)**
+👉 **[DEPLOY.md (full guide)](https://github.com/monkeytestai/monkeytest-core/blob/main/docs/DEPLOY.md)**
 
 Quick recap:
 

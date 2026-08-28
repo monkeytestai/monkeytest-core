@@ -63,6 +63,7 @@ export async function explore(
   const queue: string[] = [normaliseUrl(startUrl)];
   const pages: SiteMapPage[] = [];
   const failures: { url: string; reason: string }[] = [];
+  let authUrlsQueued = 0;
 
   const screenshotsDir = opts.screenshotsDir ? resolve(opts.screenshotsDir) : null;
   if (screenshotsDir){
@@ -177,10 +178,19 @@ export async function explore(
           },
         });
 
-        // Enqueue same-origin links we haven't yet seen, capped to the budget.
-        for (const link of sm.outboundLinks){
-          if (!visited.has(link) && !queue.includes(link)){
-            queue.push(link);
+        // Prefer public product pages. Auth walls eat crawl budget and
+        // produce login-only test plans. Cap obvious auth URLs at one visit
+        // so the planner still knows a login surface exists.
+        if (!sm.authGated){
+          for (const link of sm.outboundLinks){
+            if (visited.has(link) || queue.includes(link)) continue;
+            if (looksLikeAuthUrl(link)){
+              if (authUrlsQueued >= 1) continue;
+              authUrlsQueued += 1;
+              queue.push(link);
+            } else {
+              queue.push(link);
+            }
           }
         }
 
@@ -215,6 +225,9 @@ export async function explore(
       startUrl,
       siteType: overall.siteType,
       summary: overall.summary,
+      productName: overall.productName ?? undefined,
+      publicJourneys: overall.publicJourneys ?? undefined,
+      authSurfaces: overall.authSurfaces ?? undefined,
       pages,
       pendingUrls: queue,
       failedUrls: failures,
@@ -278,7 +291,7 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
       .filter(Boolean)
       .slice(0, 25);
 
-    const visibleText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
+    const visibleText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2200);
 
     return { headings, links, forms, buttons, visibleText };
 
@@ -318,9 +331,9 @@ async function summarisePageWithLLM(
 You are a QA analyst inspecting a single web page during an exploratory crawl.
 Based on the page metadata below, return JSON with three fields:
 
-  - "summary": a single sentence (max 25 words) describing what this page is for from a user's perspective.
-  - "authGated": boolean — true if the page seems to require login (sign-in form, "you must be logged in", session redirect, etc.). Otherwise false.
-  - "interactive": up to 8 of the most important interactive elements on the page that a tester should care about. Each item has:
+  - "summary": one sentence (max 30 words) naming the page's job for a visitor (e.g. "CRED marketing homepage promoting credit-card rewards").
+  - "authGated": boolean — true if the page is a login/OTP wall, or clearly requires an existing session. A marketing page that merely links to Sign in is NOT auth-gated.
+  - "interactive": up to 10 of the most important interactive elements a tester should care about (primary CTAs first). Each item has:
         kind     — one of "form" | "button" | "link" | "input" | "menu"
         label    — the human-readable label or visible text (max 60 chars)
         selector — optional CSS selector if you can confidently infer one (otherwise omit)
@@ -362,41 +375,56 @@ Reply with JSON only.
 const SiteSummarySchema = z.object({
   siteType: z.string().min(2),
   summary: z.string().min(3),
+  productName: z.string().min(1).nullish(),
+  publicJourneys: z.array(z.string().min(3)).max(6).nullish(),
+  authSurfaces: z.array(z.string().min(2)).max(6).nullish(),
 });
 
 async function summariseSiteWithLLM(
   llm: LLM,
   startUrl: string,
   pages: SiteMapPage[]
-): Promise<{ siteType: string; summary: string }> {
+): Promise<{ siteType: string; summary: string; productName?: string; publicJourneys?: string[]; authSurfaces?: string[] }> {
 
   if (pages.length === 0){
     return { siteType: 'unknown', summary: 'No pages were successfully visited.' };
   }
 
   const prompt = `
-You just finished exploring a website. Based on the page summaries below,
-classify the site and write a brief description.
+You just finished exploring a website as an anonymous visitor (you never logged in).
+Understand the product, then describe it so a QA architect can design real user tests.
 
 Return JSON:
-  - "siteType": short category, e.g. "ecommerce", "saas dashboard", "marketing site",
+  - "siteType": short category, e.g. "ecommerce", "fintech consumer app", "saas marketing site",
                 "blog", "documentation", "marketplace", "internal tool", "other".
-  - "summary":  one paragraph (max 60 words) describing what the site does and
-                who the typical user is.
+  - "productName": brand or product name if obvious, else omit.
+  - "summary":  2–3 sentences (max 90 words): what the product does, who the visitor is,
+                and which jobs they can complete WITHOUT an account.
+  - "publicJourneys": up to 5 concrete anonymous journeys grounded in the pages below
+                (e.g. "Read credit-card benefits and open Apply"). Do not invent pages.
+  - "authSurfaces": login / signup / OTP walls you noticed. Empty array if none.
 
 Start URL: ${startUrl}
 
 Pages visited:
-${pages.map(p => `  - ${p.url}\n      title: ${p.title}\n      summary: ${p.summary}`).join('\n')}
+${pages.map(p => `  - ${p.url}\n      title: ${p.title}\n      auth-gated: ${p.authGated}\n      summary: ${p.summary}\n      interactive: ${p.interactive.map(i => i.label).join(', ') || '(none)'}`).join('\n')}
 
 Reply with JSON only.
 `;
 
-  return llm.generateJSON({
+  const parsed = await llm.generateJSON({
     label: 'explorer.summariseSite',
     prompt,
     schema: SiteSummarySchema,
   });
+
+  return {
+    siteType: parsed.siteType,
+    summary: parsed.summary,
+    productName: parsed.productName ?? undefined,
+    publicJourneys: parsed.publicJourneys ?? undefined,
+    authSurfaces: parsed.authSurfaces ?? undefined,
+  };
 
 }
 
@@ -440,6 +468,16 @@ function belongsToOrigin(href: string, origin: string): boolean {
     // Skip mailto:, tel:, file downloads, anchors, common asset types
     if (/\.(png|jpe?g|gif|svg|pdf|zip|ico|webp|avif|mp4|webm)(\?.*)?$/i.test(u.pathname)) return false;
     return true;
+  } catch {
+    return false;
+  }
+}
+
+function looksLikeAuthUrl(u: string): boolean {
+  try {
+    const url = new URL(u);
+    const path = `${url.pathname}${url.search}`.toLowerCase();
+    return /\/(login|log-in|signin|sign-in|signup|sign-up|register|otp|verify|forgot|reset-password|password|oauth|sso|auth)(\/|$)/.test(path);
   } catch {
     return false;
   }

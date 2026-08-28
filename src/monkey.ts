@@ -320,7 +320,7 @@ function emptyRun(startUrl: string): RunResult {
     flows: [],
     bugs: [],
     stats: {
-      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0,
+      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0,
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },

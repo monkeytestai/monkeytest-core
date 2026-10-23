@@ -3,9 +3,9 @@
  *
  * Converts the runner's raw FlowResult[] into a deduplicated list of
  * BugReport entries. Each failed step → one bug, but identical failures
- * across flows (same step text, same target, same error) collapse into a
- * single bug with merged evidence so the report doesn't show a wall of
- * near-duplicate cards.
+ * across flows (same failure category, page, element, and error signal)
+ * collapse into a single bug with merged evidence so the report doesn't
+ * show a wall of near-duplicate cards.
  *
  * Two layers:
  *
@@ -24,7 +24,6 @@
  *        per-call payload.
  */
 
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
 import type {
@@ -35,6 +34,8 @@ import type {
   BugEvidence,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
+import { failureLocation, fingerprintFailure } from '../trace/fingerprint.js';
+import { bugTracePrefix } from '../trace/serialize.js';
 
 export interface TriageOptions {
   /**
@@ -188,15 +189,24 @@ function collapseAndScore(run: RunResult): RunResult {
 function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
 
   const observation = step.observation || step.error || 'Step failed.';
+  const traceStep = flow.trace?.steps.find(item => item.index === step.index);
+  const networkStatus = (step.networkFailures || []).find(item => (item.status || 0) >= 500)?.status;
 
-  const fingerprint = createHash('sha1')
-    .update([
-      step.action.trim().toLowerCase(),
-      step.tool || 'unknown',
-      normalisedErrorCode(step),
-    ].join('|'))
-    .digest('hex')
-    .slice(0, 16);
+  const { fingerprint, parts } = fingerprintFailure({
+    tool: traceStep?.tool || step.tool,
+    error: step.error,
+    observation,
+    location: failureLocation({
+      tool: traceStep?.tool || step.tool,
+      locatorTarget: traceStep?.locator?.target || (step.tool === 'goto' ? step.target : undefined),
+      urlBefore: traceStep?.urlBefore,
+      urlAfter: traceStep?.urlAfter,
+      fallback: flow.startUrl,
+    }),
+    locator: traceStep?.locator || step.locator,
+    target: step.target,
+    networkStatus,
+  });
 
   const id = `bug-${flow.flowId}-${step.index}-${fingerprint.slice(0, 6)}`;
 
@@ -216,9 +226,13 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
 
   const severity = inferSeverity(flow, step);
 
+  const trace = flow.trace ? bugTracePrefix(flow.trace, step.index) : undefined;
+
   return {
     id,
     fingerprint,
+    fingerprintParts: parts,
+    ...(trace && trace.steps.length > 0 ? { trace } : {}),
     title: shortTitle(flow, step),
     severity,
     affectedFlow: flow.name,
@@ -229,18 +243,6 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
     triageNotes: explain(step),
   };
 
-}
-
-function normalisedErrorCode(step: StepResult): string {
-  const err = (step.error || '').toLowerCase();
-  if (!err) return 'no-error';
-  if (err.includes('timeout')) return 'timeout';
-  if (err.includes('not found') || err.includes('no element')) return 'selector-missing';
-  if (err.includes('not visible') || err.includes('hidden')) return 'element-hidden';
-  if (err.includes('navigation')) return 'navigation-failed';
-  if (err.includes('assertion_failed')) return 'assertion-failed';
-  if (err.includes('invalid_url')) return 'invalid-url';
-  return err.replace(/\s+/g, '-').slice(0, 40);
 }
 
 function inferSeverity(flow: FlowResult, step: StepResult): BugReport['severity'] {

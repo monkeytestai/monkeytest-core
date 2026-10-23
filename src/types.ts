@@ -200,6 +200,13 @@ export interface StepResult {
   tool?: string;
   /** Selector (or URL/value) the tool acted on, for the report timeline. */
   target?: string;
+  /** Stable locator captured for replay (role, name, test id, CSS fallback). */
+  locator?: TraceLocator;
+  /**
+   * `recorded` — the action came from the trace (or the original LLM resolution).
+   * `healed` — the recorded locator missed and the LLM re-resolved the step.
+   */
+  resolution?: TraceResolution;
   /** Wall-clock duration in milliseconds. */
   durationMs?: number;
   /** Console errors that fired while this step was executing. */
@@ -233,6 +240,12 @@ export interface FlowResult {
    * server can serve it without a manifest.
    */
   videoPath?: string;
+  /**
+   * Resolved actions for this flow, in order, including the opening navigation.
+   * `monkeytest rerun` replays this trace without calling the LLM.
+   * Absent on runs recorded before trace capture existed.
+   */
+  trace?: FlowTrace;
 }
 
 export interface RunResult {
@@ -273,6 +286,97 @@ export interface NetworkFailureEvidence {
   failureText?: string;
 }
 
+/* ── Action traces (replay) and v2 fingerprints ───────────────────────── */
+
+export type TraceTool = 'click' | 'fill' | 'goto' | 'wait' | 'assert_text' | 'press' | 'noop';
+
+export type TraceLocatorStrategy = 'role' | 'text' | 'placeholder' | 'label' | 'testid' | 'css';
+
+export type TraceResolution = 'recorded' | 'healed';
+
+/**
+ * Everything replay needs to find the same element without asking the LLM.
+ * Strategies are tried in stability order: test id, role+name, label,
+ * placeholder, text, then the CSS fallback.
+ */
+export interface TraceLocator {
+  strategy: TraceLocatorStrategy;
+  /** Primary target recorded with `strategy` (accessible name, text, selector, URL, test id). */
+  target: string;
+  role?: string;
+  name?: string;
+  text?: string;
+  testId?: string;
+  /** Last-resort CSS selector captured from the live element. */
+  css?: string;
+  placeholder?: string;
+  label?: string;
+}
+
+export interface TraceStep {
+  /** 0 is the opening navigation; planned steps start at 1. */
+  index: number;
+  /** Natural-language instruction from the plan, when this step came from one. */
+  action?: string;
+  expectation?: string;
+  tool: TraceTool;
+  locator?: TraceLocator;
+  /** Value typed (fill) or key pressed (press). */
+  value?: string;
+  /** Page URL before the action. */
+  urlBefore?: string;
+  /** Page URL after the action. */
+  urlAfter?: string;
+  /** ISO timestamp when the step started. */
+  startedAt?: string;
+  durationMs?: number;
+  status: StepStatus;
+  observation?: string;
+  error?: string;
+  screenshotPath?: string;
+  consoleErrors?: ConsoleErrorEvidence[];
+  networkFailures?: NetworkFailureEvidence[];
+  /** Absent or `recorded` on the original capture. `healed` is a replay annotation. */
+  resolution?: TraceResolution;
+}
+
+export interface FlowTrace {
+  version: 1;
+  flowId: string;
+  name: string;
+  description?: string;
+  kind?: FlowKind;
+  startUrl: string;
+  expectation?: string;
+  steps: TraceStep[];
+}
+
+/** Prefix of a flow trace through the failing step, stored on the bug itself. */
+export interface BugTrace {
+  version: 1;
+  flowId: string;
+  startUrl: string;
+  steps: TraceStep[];
+}
+
+/**
+ * Inputs to a v2 fingerprint. Stored beside the hash so diff and verify can
+ * recompute it, and so a human can see why two bugs did or did not match.
+ */
+export interface FingerprintParts {
+  version: 2;
+  /** Oracle that failed. Never an LLM tool name. */
+  category: string;
+  /** URL template; numeric ids, uuids, and timestamps replaced. */
+  location: string;
+  /** Accessible role, or empty when the failure is not element-scoped. */
+  role: string;
+  /** Normalised accessible name. */
+  name: string;
+  /** Coarse error class. Numbers, ids, and timestamps removed. */
+  errorSignal: string;
+}
+
 export interface BugEvidence {
   screenshots: string[];
   consoleErrors: ConsoleErrorEvidence[];
@@ -285,9 +389,22 @@ export interface BugReport {
   id: string;
   /**
    * Stable hash across runs so "fixed" / "regressed" become real concepts.
-   * Derived from (affectedFlow, normalised observation, primary error code).
+   *
+   * v2 (current): sha1 of `category | location | role | name | errorSignal`.
+   * The LLM tool name and raw error text are not inputs. See `fingerprintParts`.
+   *
+   * v1 (historical run files): sha1 of action text + tool + a lightly
+   * normalised error string. Readers keep that stored hash so old diffs
+   * stay valid; new triage always writes v2.
    */
   fingerprint: string;
+  /** Present on bugs triaged with the v2 scheme. */
+  fingerprintParts?: FingerprintParts;
+  /**
+   * Resolved actions from the start of the flow through the failing step,
+   * plus that step's screenshot / console / network evidence when captured.
+   */
+  trace?: BugTrace;
   title: string;
   severity: 'critical' | 'major' | 'minor';
   affectedFlow: string;

@@ -5,6 +5,20 @@ All notable changes to **MonkeyTest Core** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Action traces on each flow and on each bug (locator, value, URL, timing, evidence).
+- v2 bug fingerprints from failure category, URL template, element role + name, and a normalised error signal. The LLM tool choice and raw error text are not part of the hash.
+- `monkeytest rerun` replays the stored trace with no LLM calls. `--heal` re-resolves a step whose locator missed and marks that step `healed`.
+- `monkeytest verify` replays each bug trace and reports `fixed`, `still_broken`, `flaky`, `healed`, or `blocked`. Exit `1` when any bug is `still_broken` or `flaky`.
+- Vitest coverage for fingerprints, trace serialisation, verdicts, and `diffRuns`, plus an integration test. CI runs `npm test`.
+
+### Fixed
+
+- The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
+
 ## [0.4.0] — 2026-05
 
 The bug-finding loop release. The CLI is now a real product surface with

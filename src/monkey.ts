@@ -14,7 +14,9 @@ import { createLLM, type LLM } from './llm/index.js';
 import { explore, type ExploreOptions } from './explorer/index.js';
 import { plan, type PlannerOptions } from './planner/index.js';
 import { runPlan, type RunnerOptions } from './runner/index.js';
+import { replayTraces, type ReplayOptions } from './runner/replay.js';
 import { triage, triagePolished } from './triager/index.js';
+import { verifyBugs, type VerifyOptions, type VerifyReport } from './verify/index.js';
 import { EventBus, noopBus } from './events.js';
 import type {
   MonkeyLLMConfig,
@@ -197,14 +199,17 @@ export class Monkey {
    * Re-run a previously-stored `TestPlan` against the same (or a new) URL,
    * skipping the explorer and planner phases entirely.
    *
-   * This is the **bug-fix verification loop**: you ran `executeAndTriage`
-   * yesterday, fixed the reported bugs, and want to know if the same flows
-   * now pass. By re-using the stored plan you get:
+   * This re-executes the stored plan. The runner still asks the LLM which
+   * tool to use at each step, so it is not a byte-for-byte replay.
    *
-   *   - **Determinism** — exact same flows, exact same steps, no LLM-driven
-   *     plan drift between runs.
-   *   - **Speed + cost** — no explorer LLM calls, no planner call, just
-   *     runner + triager.
+   * For a replay that does not call the LLM, use `replayRecorded` (the CLI
+   * `rerun` command) or `verifyRecorded` (`monkeytest verify`). Those walk
+   * the action trace captured on the original run.
+   *
+   * Re-using the stored plan still gives:
+   *
+   *   - **Same flows** — no explorer or planner drift between runs.
+   *   - **Speed + cost** — no explorer LLM calls and no planner call.
    *   - **Comparability** — pair the result with `diffRuns(prev, current)`
    *     to see new / fixed / regressed bugs by stable fingerprint.
    *
@@ -267,6 +272,40 @@ export class Monkey {
 
     return { plan: testPlan, run };
 
+  }
+
+  /**
+   * Replay traces captured on a previous run. Does not call the LLM unless
+   * `opts.heal` is set, in which case a missed locator is re-resolved with
+   * the runner model and that step is marked `healed`.
+   */
+  async replayRecorded(
+    source: RunResult,
+    opts: ReplayOptions & { heal?: boolean },
+  ): Promise<{ run: RunResult }> {
+    const traces = source.flows
+      .map(flow => flow.trace)
+      .filter((trace): trace is NonNullable<typeof trace> => !!trace && trace.steps.length > 0);
+    const raw = await replayTraces(traces, {
+      ...opts,
+      heal: opts.heal,
+      llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
+    });
+    const run = this.triagerLLM
+      ? await triagePolished(raw, { llm: this.triagerLLM })
+      : triage(raw);
+    return { run };
+  }
+
+  /**
+   * Replay each bug trace on `source` and return a fixed / still_broken /
+   * flaky / healed / blocked verdict. No LLM unless `opts.heal` is set.
+   */
+  async verifyRecorded(source: RunResult, opts: VerifyOptions): Promise<VerifyReport> {
+    return verifyBugs(source, {
+      ...opts,
+      llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
+    });
   }
 
   /**

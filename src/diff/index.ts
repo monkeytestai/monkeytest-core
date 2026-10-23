@@ -6,12 +6,18 @@
  *   "I ran tests yesterday, fixed the 3 reported bugs, ran them again today
  *    — what's new, what's gone, and what came back?"
  *
- * Bug `fingerprint` is intentionally stable across runs (action text +
- * tool + normalised error code), so the diff is just a set operation on
- * those fingerprints.
+ * Bug identity is the v2 fingerprint: failure category, URL template,
+ * target role + name, and a normalised error signal. The LLM's tool choice
+ * and raw error text are not part of the key, so the same bug cannot show
+ * up as both "fixed" and "new" just because a later run picked a different
+ * tool or the message contained a new id.
+ *
+ * Bugs written before v2 have no `fingerprintParts`. Those keep the hash
+ * stored on the run file, so diffing two historical runs still works.
  */
 
 import type { BugReport, RunResult } from '../types.js';
+import { fingerprintFromParts } from '../trace/fingerprint.js';
 
 export type RunDiffStatus = 'new' | 'fixed' | 'persisting' | 'regressed';
 
@@ -61,6 +67,20 @@ const SEVERITY_RANK: Record<BugReport['severity'], number> = {
 };
 
 /**
+ * Identity used by the diff. v2 parts win over the stored string so a stale
+ * hash cannot split one bug into fixed+new. Legacy bugs (no parts) use the
+ * hash they were saved with.
+ */
+export function bugFingerprint(bug: BugReport): string {
+  const parts = bug.fingerprintParts;
+  if (parts?.version === 2){
+    try { return fingerprintFromParts(parts); }
+    catch { /* fall through to the stored hash */ }
+  }
+  return bug.fingerprint;
+}
+
+/**
  * Compute the diff between two runs, keyed by stable bug fingerprint.
  *
  * Both arguments must be triaged `RunResult`s (i.e. `run.bugs[]` populated
@@ -69,8 +89,8 @@ const SEVERITY_RANK: Record<BugReport['severity'], number> = {
  */
 export function diffRuns(previous: RunResult, current: RunResult): RunDiff {
 
-  const prevByFp = new Map(previous.bugs.map(b => [b.fingerprint, b]));
-  const currByFp = new Map(current.bugs.map(b => [b.fingerprint, b]));
+  const prevByFp = new Map(previous.bugs.map(b => [bugFingerprint(b), b]));
+  const currByFp = new Map(current.bugs.map(b => [bugFingerprint(b), b]));
 
   const newBugs: BugDiffEntry[] = [];
   const fixedBugs: BugDiffEntry[] = [];

@@ -40,8 +40,28 @@ export type { PlannerOptions } from './planner/index.js';
 export { runPlan } from './runner/index.js';
 export type { RunnerOptions, RunnerEvent } from './runner/index.js';
 
+export { replayTraces } from './runner/replay.js';
+export type { ReplayOptions } from './runner/replay.js';
+
+export { verifyBugs, aggregateVerdict, classifyAttempt, verifyExitCode } from './verify/index.js';
+export type { VerifyOptions, VerifyReport, BugVerdict, VerifyAttempt, VerifyVerdict } from './verify/index.js';
+
 export { triage, triagePolished } from './triager/index.js';
 export type { TriageOptions } from './triager/index.js';
+
+export { bugFingerprint } from './diff/index.js';
+
+export {
+  fingerprintFailure,
+  fingerprintFromParts,
+  normaliseErrorSignal,
+  normaliseLocation,
+  normaliseLabel,
+  failureCategory,
+} from './trace/fingerprint.js';
+export type { FingerprintInput } from './trace/fingerprint.js';
+
+export { serializeTrace, serializeTraceStep, bugTracePrefix } from './trace/serialize.js';
 
 export { createLLM } from './llm/index.js';
 export type { LLM, GenerateJSONOptions, LLMUsage } from './llm/index.js';
@@ -77,6 +97,14 @@ export type {
   RunResult,
   BugReport,
   BugEvidence,
+  BugTrace,
+  FlowTrace,
+  TraceStep,
+  TraceLocator,
+  TraceTool,
+  TraceLocatorStrategy,
+  TraceResolution,
+  FingerprintParts,
   ConsoleErrorEvidence,
   NetworkFailureEvidence,
   MonkeyEvent,

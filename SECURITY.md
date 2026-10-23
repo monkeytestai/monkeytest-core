@@ -43,4 +43,4 @@ Out of scope (report to the appropriate project):
 - Run browser automation in isolated environments in production (containers,
   dedicated workers, least-privilege network policies).
 - Review AGPL obligations if you modify the engine and offer it as a network
-  service—see the [license FAQ](https://docs.monkeytest.ai/guide/license-and-saas.html).
+  service—see the [license FAQ](https://docs.monkeytest.ai/guide/license-and-saas).

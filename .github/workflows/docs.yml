@@ -1,5 +1,7 @@
-# Build static documentation (VitePress). Host output on Cloudflare Pages,
-# Vercel, Netlify, or GitHub Pages at docs.monkeytest.ai
+# Build the VitePress site and upload the static artifact.
+# Production (docs.monkeytest.ai) is a separate Vercel project. This workflow
+# does not deploy. Clean URLs come from /vercel.json (`cleanUrls: true`);
+# netlify.toml and docs/public/_redirects are not read by Vercel.
 name: Docs
 
 on:

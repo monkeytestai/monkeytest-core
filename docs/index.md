@@ -22,7 +22,7 @@ hero:
 features:
   - title: Drop-in, not framework
     icon: 🧰
-    details: One npm package, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`.
+    details: One library, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`. The npm package is still being published; the quick start builds from the repo.
   - title: Bring your own LLM
     icon: 🧠
     details: OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter). Pick a different model per phase.
@@ -44,9 +44,13 @@ features:
 .vp-doc h2 + p { font-size: 1.0625rem; }
 </style>
 
+::: info npm package coming
+`npm install @mtai/monkeytest-core` returns 404 as of October 2026. The [quick start](/guide/quick-start) clones the repo, builds it, and runs a smoke test with no API key. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
+:::
+
 ## Why MonkeyTest Core?
 
-Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by **looking** at your app first.
+Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by **looking** at your app first. How that compares with Explorbot, browser-use, Skyvern, Stagehand, Midscene.js, Shortest, and Gremlins.js is on [Why monkeytest](/guide/why-monkeytest).
 
 It opens a real browser, crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and hands you back a structured report with screenshots, bug fingerprints, and a live event stream you can wire into your own dashboard.
 

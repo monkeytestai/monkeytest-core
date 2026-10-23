@@ -2,6 +2,51 @@
 
 A grab bag of the most common errors and how to fix them. If your problem isn't here, [open an issue](https://github.com/monkeytestai/monkeytest-core/issues) — and please include the failing event from the `EventBus` (`engine.error` events have a `data.error` field).
 
+## First-run failures
+
+### `dist/` has no `.js` files after `npm run build`
+
+`tsc` can exit 0 and still leave you with nothing to run. On commits that shipped a TypeScript incremental cache (`.tsbuildinfo`) without `dist/`, a fresh `npm run build` wrote declaration files only (`.d.ts`, `.d.ts.map`) and no `.js`. `node scripts/smoke.mjs` then fails importing `dist/explorer/index.js`, and `node dist/cli.js` fails the same way.
+
+```bash
+npm run clean && npm run build
+test -f dist/cli.js && test -f dist/index.js
+```
+
+Current source removes `.tsbuildinfo` at the start of `npm run build`, gitignores that file, and compiles with incremental mode off, so a clone of this version emits JavaScript on the first build. Use the `clean` command above if you still see a declaration-only `dist/`.
+
+### `No LLM provider configured` (exit 2)
+
+The CLI checks the environment before it launches Chromium. With no key and no `OPENAI_COMPATIBLE_BASE_URL`, `run`, `explore`, and `rerun` print this and exit 2:
+
+```text
+No LLM provider configured. Set one of: GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, or OPENAI_COMPATIBLE_BASE_URL — or pass --provider explicitly.
+```
+
+Export the variable in the same shell, or pass `--provider` and `--api-key`. `node scripts/smoke.mjs` does not go through this check.
+
+### Invalid or revoked API key (exit 3, after the crawl)
+
+A key that is present but rejected is not checked up front. The constructor only checks that a string exists. The provider sees the key on the first model call, which happens after Playwright has already opened the page.
+
+What you see with a bad `GEMINI_API_KEY`:
+
+1. The CLI prints `visited` for the page.
+2. A PNG is already in `.monkeytest/shots/` (for example `shots/page-1-example-com.png`).
+3. The process then exits **3**. `plan.json` is not written, because the failure is the crawl's closing site summary (`explorer.summariseSite`), before the CLI saves anything.
+
+The message is the provider body, wrapped by the client. For Gemini it looks like this (the JSON is Google's, not ours):
+
+```text
+✗ monkeytest failed: [gemini:gemini-flash-lite-latest · explorer.summariseSite] generateContent failed: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent: [400 Bad Request] API key not valid. Please pass a valid API key. [… "reason":"API_KEY_INVALID" …]
+```
+
+`run` and `explore` both hit that path. OpenAI-compatible providers wrap the same moment as `chat.completions failed:` plus the server's body. `MONKEYTEST_DEBUG=1` adds the stack trace. Fix the key and run again. Per-page summaries that fail are kept (the visit line may say `LLM summary unavailable`); the site-level summary is what aborts the command.
+
+### `Executable doesn't exist` / Chromium missing
+
+Playwright's browser is a separate download from `npm install`. See the next section.
+
 ## Engine
 
 ### `Executable doesn't exist at /path/to/chromium`
@@ -94,7 +139,7 @@ The engine auto-disables `response_format` for `localhost` / `127.0.0.1` endpoin
 Two things to check:
 
 1. **Cross-origin headers.** The engine writes screenshots to a directory you control; make sure your HTTP server sets `Cross-Origin-Resource-Policy: cross-origin` and `Access-Control-Allow-Origin: *` on those responses.
-2. **Path resolution.** `StepResult.screenshotPath` is an **absolute path** on the runner machine. Convert it to a URL your client can fetch (a static mount, or a `/screenshots/:basename` route) before serializing the result.
+2. **Path resolution.** `StepResult.screenshotPath` is an **absolute path** on the runner machine (under `.monkeytest/shots/` when you use the CLI). Convert it to a URL your client can fetch before serializing the result.
 
 ### The `EventBus` is firing but nothing reaches my UI
 

@@ -23,14 +23,20 @@ cd monkeytest-core
 npm install
 npx playwright install chromium
 npm run build
+test -f dist/cli.js
+node scripts/smoke.mjs
 ```
+
+`npm run build` has to leave `dist/cli.js` in place. `scripts/smoke.mjs` crawls `https://example.com` with a stub LLM and needs no API key.
 
 Run the CLI against a throwaway URL:
 
 ```bash
-export OPENAI_API_KEY=sk-...
+export GEMINI_API_KEY=...
 npx tsx src/cli.ts explore https://example.com
 ```
+
+Screenshots are written to `.monkeytest/shots/`. The CLI does not read `.monkeytest/config.json`.
 
 ## Pull request checklist
 

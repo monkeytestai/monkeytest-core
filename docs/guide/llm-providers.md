@@ -118,11 +118,33 @@ Anything that speaks the OpenAI Chat Completions API.
 ```ts
 {
   provider: 'openai_compatible',
-  baseURL:  'http://localhost:11434/v1',   // Ollama
+  baseURL:  'http://127.0.0.1:11434/v1',   // Ollama
   apiKey:   'ollama',                       // any non-empty string
   model:    'llama3.1:8b',
 }
 ```
+
+From the CLI, after `npm run build` in a clone:
+
+```bash
+ollama pull llama3.1:8b
+export OPENAI_COMPATIBLE_BASE_URL="http://127.0.0.1:11434/v1"
+export OPENAI_COMPATIBLE_API_KEY="ollama"
+node dist/cli.js run https://example.com \
+  --provider openai_compatible \
+  --base-url "http://127.0.0.1:11434/v1" \
+  --model llama3.1:8b \
+  --max 2 --flows 1
+```
+
+Env vars the client actually reads (`src/llm/index.ts`, `src/llm/presets.ts`):
+
+| Variable | Role |
+| --- | --- |
+| `OPENAI_COMPATIBLE_BASE_URL` | Endpoint. Also the fallback when `--base-url` is omitted. Auto-detect selects this provider only when this variable is set and no hosted key is set. |
+| `OPENAI_COMPATIBLE_API_KEY` | Sent as the bearer token. Ollama ignores it. If both this and `--api-key` are unset, the client uses `sk-no-key-required`. |
+
+Pass `--model`. The default model id for `openai_compatible` is `gpt-4o-mini`, which Ollama does not serve. JSON mode (`response_format`) is disabled when the base URL matches `ollama`, `localhost`, or `127.0.0.1`. The copy-paste walkthrough is on the [quick start](/guide/quick-start#fully-local-with-ollama).
 
 ```ts
 // OpenRouter

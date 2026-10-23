@@ -40,6 +40,11 @@ export interface ReplayOptions {
   /** Default true. Tests turn this off; video is not required to replay. */
   recordVideo?: boolean;
   /**
+   * Same switch as `RunnerOptions.strictOracles`. Default false so a library
+   * replay does not grow new bugs. The CLI passes true.
+   */
+  strictOracles?: boolean;
+  /**
    * Reuse a browser across calls. The caller owns its lifecycle; replay will
    * not close it. `verify` uses this so N repeats share one Chromium.
    */
@@ -167,7 +172,9 @@ async function replayFlow(
       const startedAt = new Date().toISOString();
       const stepStart = Date.now();
       const played = await playStep(page, trace, recorded, opts, stepTimeout);
-      played.outcome = await applyPassedOracles(page, evidence, recorded.index, played.outcome);
+      if (opts.strictOracles) {
+        played.outcome = await applyPassedOracles(page, evidence, recorded.index, played.outcome);
+      }
       const urlAfter = safeUrl(page);
 
       const result: StepResult = {
@@ -258,20 +265,20 @@ async function playStep(
 ): Promise<PlayedStep> {
   if (!needsElement(recorded)){
     const action = actionFromRecorded(recorded);
-    const outcome = await executeAction(page, action, timeoutMs);
+    const outcome = await executeAction(page, action, timeoutMs, { strictOracles: opts.strictOracles });
     return { action, locator: recorded.locator, outcome, resolution: 'recorded' };
   }
 
   const matched = await firstMatch(page, recorded);
   if (matched){
-    const outcome = await executeAction(page, matched, timeoutMs);
+    const outcome = await executeAction(page, matched, timeoutMs, { strictOracles: opts.strictOracles });
     const locator = await captureLocator(page, matched).catch(() => recorded.locator);
     return { action: matched, locator: locator || recorded.locator, outcome, resolution: 'recorded' };
   }
 
   if (opts.heal && opts.llm && recorded.action){
     const healed = await healStep(page, trace, recorded, opts.llm);
-    const outcome = await executeAction(page, healed, timeoutMs);
+    const outcome = await executeAction(page, healed, timeoutMs, { strictOracles: opts.strictOracles });
     const locator = await captureLocator(page, healed).catch(() => undefined);
     return {
       action: healed,

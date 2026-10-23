@@ -10,6 +10,7 @@ import { chromium, type Browser } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { BugReport, BugTrace, FlowTrace, RunResult } from '../types.js';
+import { bugMatchesFingerprint } from '../diff/index.js';
 import { replayTraces, type ReplayOptions } from '../runner/replay.js';
 import {
   aggregateVerdict,
@@ -29,7 +30,10 @@ export interface VerifyOptions extends ReplayOptions {
 }
 
 export interface BugVerdict {
+  /** Legacy v1 hash. Hosts that stored `bug.fingerprint` can keep comparing it. */
   fingerprint: string;
+  /** Stable hash when the bug was triaged with v2. */
+  fingerprintV2?: string;
   bugId: string;
   title: string;
   severity: BugReport['severity'];
@@ -64,7 +68,7 @@ export async function verifyBugs(run: RunResult, opts: VerifyOptions): Promise<V
   }
 
   const wanted = opts.fingerprints ? new Set(opts.fingerprints) : undefined;
-  const bugs = (opts.bugs ?? run.bugs).filter(bug => !wanted || wanted.has(bug.fingerprint));
+  const bugs = (opts.bugs ?? run.bugs).filter(bug => !wanted || [...wanted].some(fp => bugMatchesFingerprint(bug, fp)));
 
   const screenshotsDir = resolve(opts.screenshotsDir);
   mkdirSync(screenshotsDir, { recursive: true });
@@ -111,6 +115,7 @@ async function verifyOne(
 ): Promise<BugVerdict> {
   const base = {
     fingerprint: bug.fingerprint,
+    fingerprintV2: bug.fingerprintV2,
     bugId: bug.id,
     title: bug.title,
     severity: bug.severity,

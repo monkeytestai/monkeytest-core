@@ -62,6 +62,12 @@ export interface RunnerOptions {
   screenshotsDir: string;
   /** Per-step navigation/action timeout. Default 15s. */
   stepTimeoutMs?: number;
+  /**
+   * Fail a step on an uncaught page error, a document HTTP 404, an action
+   * HTTP 5xx, or a disabled control. Default false. The CLI turns this on;
+   * library callers keep the historical counts until they opt in.
+   */
+  strictOracles?: boolean;
   /** Hard cap on a flow's wall-clock time. Default 180s. */
   flowTimeoutMs?: number;
   /** Launch the browser headless. Default true. */
@@ -274,10 +280,12 @@ async function runFlow(
     evidence.stepIndex = 0;
     await page.goto(flow.startUrl, { waitUntil: 'domcontentloaded', timeout: opts.stepTimeoutMs });
     await settleSPA(page);
-    const nav = await applyPassedOracles(page, evidence, 0, {
-      status: 'passed',
-      observation: `Navigated to ${flow.startUrl}.`,
-    });
+    const nav = opts.strictOracles
+      ? await applyPassedOracles(page, evidence, 0, {
+        status: 'passed',
+        observation: `Navigated to ${flow.startUrl}.`,
+      })
+      : { status: 'passed' as const, observation: `Navigated to ${flow.startUrl}.` };
     if (nav.status === 'failed') {
       navOracleError = nav.error || nav.observation;
       throw new Error(navOracleError);
@@ -442,12 +450,12 @@ async function runFlow(
     }
 
     const locator = await captureLocator(page, resolved);
-    const exec = await applyPassedOracles(
-      page,
-      evidence,
-      stepIndex,
-      await executeAction(page, resolved, opts.stepTimeoutMs),
-    );
+    const executed = await executeAction(page, resolved, opts.stepTimeoutMs, {
+      strictOracles: opts.strictOracles,
+    });
+    const exec = opts.strictOracles
+      ? await applyPassedOracles(page, evidence, stepIndex, executed)
+      : executed;
     const screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, exec.status);
     const durationMs = Date.now() - stepStart;
 

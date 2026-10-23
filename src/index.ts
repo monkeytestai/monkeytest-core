@@ -49,11 +49,12 @@ export type { VerifyOptions, VerifyReport, BugVerdict, VerifyAttempt, VerifyVerd
 export { triage, triagePolished } from './triager/index.js';
 export type { TriageOptions } from './triager/index.js';
 
-export { bugFingerprint } from './diff/index.js';
+export { bugFingerprint, bugMatchesFingerprint } from './diff/index.js';
 
 export {
   fingerprintFailure,
   fingerprintFromParts,
+  legacyFingerprint,
   normaliseErrorSignal,
   normaliseLocation,
   normaliseLabel,

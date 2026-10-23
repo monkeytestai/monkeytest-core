@@ -37,12 +37,19 @@ describe('demo app seeded bugs', () => {
     await demo.close();
   });
 
+  it('leaves the seeded failures unreported when strict oracles are off', async () => {
+    await fetch(`${demo.url}/__monkeytest/mode`, { method: 'POST', body: 'buggy' });
+    const run = await execute(demo.url, shots, llm, false);
+    expect(run.bugs).toHaveLength(0);
+    expect(run.stats.flowsFailed).toBe(0);
+  }, 60_000);
+
   it('finds each seeded category and reports them fixed once the same app is corrected', async () => {
     const posted = await fetch(`${demo.url}/__monkeytest/mode`, { method: 'POST', body: 'buggy' });
     expect(posted.status).toBe(204);
     expect(demo.getMode()).toBe('buggy');
 
-    const run = await execute(demo.url, shots, llm);
+    const run = await execute(demo.url, shots, llm, true);
     expect(run.bugs).toHaveLength(4);
 
     const found = Object.fromEntries(run.bugs.map(bug => [
@@ -62,6 +69,7 @@ describe('demo app seeded bugs', () => {
       headless: true,
       recordVideo: false,
       llm,
+      strictOracles: true,
     });
     expect(still.results.map(result => result.verdict).sort()).toEqual([
       'still_broken', 'still_broken', 'still_broken', 'still_broken',
@@ -78,6 +86,7 @@ describe('demo app seeded bugs', () => {
       headless: true,
       recordVideo: false,
       llm,
+      strictOracles: true,
     });
     expect(fixed.results.map(result => result.verdict).sort()).toEqual([
       'fixed', 'fixed', 'fixed', 'fixed',
@@ -104,7 +113,7 @@ function actionFor(prompt: string) {
   throw new Error(`stub LLM has no action for step "${step}"`);
 }
 
-async function execute(url: string, shots: string, llm: LLM): Promise<RunResult> {
+async function execute(url: string, shots: string, llm: LLM, strictOracles: boolean): Promise<RunResult> {
   const plan: TestPlan = {
     startUrl: url,
     siteType: 'fixture',
@@ -119,7 +128,8 @@ async function execute(url: string, shots: string, llm: LLM): Promise<RunResult>
     screenshotsDir: shots,
     headless: true,
     recordVideo: false,
-    stepTimeoutMs: 8_000,
+    stepTimeoutMs: strictOracles ? 8_000 : 2_000,
+    strictOracles,
   });
   return triage(raw);
 }

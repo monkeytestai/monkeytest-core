@@ -3,6 +3,7 @@ import { triage } from '../src/triager/index.js';
 import {
   failureCategory,
   fingerprintFailure,
+  legacyFingerprint,
   normaliseErrorSignal,
   normaliseLabel,
   normaliseLocation,
@@ -83,7 +84,8 @@ describe('fingerprintFailure', () => {
   it('ignores the LLM tool choice', () => {
     const click = fingerprintFailure({ ...shared, tool: 'click' });
     const fill = fingerprintFailure({ ...shared, tool: 'fill' });
-    expect(fill.fingerprint).toBe(click.fingerprint);
+    expect(fill.fingerprintV2).toBe(click.fingerprintV2);
+    expect(fill.fingerprint).not.toBe(click.fingerprint);
     expect(fill.parts).toEqual(click.parts);
     expect(fill.parts).not.toHaveProperty('tool');
     expect(JSON.stringify(fill.parts)).not.toContain('fill');
@@ -91,19 +93,21 @@ describe('fingerprintFailure', () => {
   });
 
   it('changes when the element role or the error class changes', () => {
-    const base = fingerprintFailure({ ...shared, tool: 'fill' });
+    const base = fingerprintFailure({ ...shared, tool: 'fill', action: 'Type the email' });
     const otherRole = fingerprintFailure({
       ...shared,
       tool: 'fill',
+      action: 'Type the email',
       locator: { ...shared.locator, role: 'button', name: 'Email' },
     });
     const otherSignal = fingerprintFailure({
       ...shared,
       tool: 'fill',
+      action: 'Type the email',
       error: 'Timeout 5000ms exceeded waiting for locator("#email")',
     });
-    expect(otherRole.fingerprint).not.toBe(base.fingerprint);
-    expect(otherSignal.fingerprint).not.toBe(base.fingerprint);
+    expect(otherRole.fingerprintV2).not.toBe(base.fingerprintV2);
+    expect(otherSignal.fingerprintV2).not.toBe(base.fingerprintV2);
     expect(otherSignal.parts.errorSignal).toBe('target-not-found');
   });
 
@@ -125,16 +129,33 @@ describe('fingerprintFailure', () => {
     const a = fingerprintFailure({ ...shared, tool: 'fill', location: 'https://shop.example/users/1' });
     const b = fingerprintFailure({ ...shared, tool: 'fill', location: 'https://shop.example/users/2' });
     expect(a.parts.location).toBe('https://shop.example/users/:id');
-    expect(b.fingerprint).toBe(a.fingerprint);
+    expect(b.fingerprintV2).toBe(a.fingerprintV2);
+  });
+});
+
+describe('legacyFingerprint', () => {
+  it('matches the v1 hash current main writes for the sign-in timeout', () => {
+    expect(legacyFingerprint({
+      action: 'Click the Sign in button',
+      tool: 'click',
+      error: 'Timeout 15000ms exceeded',
+    })).toBe('ba31f6c9372c01be');
   });
 });
 
 describe('triage fingerprints', () => {
-  it('stores v2 parts and the trace prefix, and matches a different tool on the same element', () => {
+  it('keeps the v1 hash on fingerprint and shares fingerprintV2 across tools', () => {
     const click = triage(runWith([failedStep('click', 'Timeout 15000ms exceeded waiting for locator("#save")')]));
     const fill = triage(runWith([failedStep('fill', 'Timeout 10ms exceeded waiting for locator("#save") id 99999')]));
     expect(click.bugs).toHaveLength(1);
-    expect(fill.bugs[0].fingerprint).toBe(click.bugs[0].fingerprint);
+    expect(click.bugs[0].fingerprint).toBe(legacyFingerprint({
+      action: 'Press save',
+      tool: 'click',
+      error: 'Timeout 15000ms exceeded waiting for locator("#save")',
+    }));
+    expect(fill.bugs[0].fingerprint).not.toBe(click.bugs[0].fingerprint);
+    expect(fill.bugs[0].fingerprintV2).toBe(click.bugs[0].fingerprintV2);
+    expect(click.bugs[0].id.endsWith(click.bugs[0].fingerprint.slice(0, 6))).toBe(true);
     expect(click.bugs[0].fingerprintParts).toMatchObject({
       version: 2,
       category: 'interaction',

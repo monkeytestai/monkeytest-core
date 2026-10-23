@@ -32,28 +32,6 @@ export OPENAI_API_KEY=sk-...
 npx tsx src/cli.ts explore https://example.com
 ```
 
-## Tests
-
-Contributors run layer 1 only. It needs no API key:
-
-```bash
-npm test
-```
-
-That is the Vitest suite, including a stub LLM against `test/fixtures/demo-app` (a page error, a 404 link, a form that returns 500, and a disabled button). CI runs the same command on every pull request.
-
-Maintainers can also run that fixture against a real model. The workflow is `.github/workflows/e2e-live.yml` (Actions → **Live e2e** → Run workflow). It also runs nightly and on pushes to `main`. It does **not** run on pull requests, so a fork PR never receives secrets.
-
-Add repository secrets under Settings → Secrets and variables → Actions:
-
-| Secret | Role |
-| --- | --- |
-| `GEMINI_API_KEY` | Default live run, model `gemini-flash-lite-latest`. A manual or scheduled run fails when this secret is missing. A push to `main` skips the Gemini leg instead, so the branch stays green before the secret exists. |
-| `OPENAI_API_KEY` | Optional matrix leg, model `gpt-4o-mini`. Skipped when the secret is empty. |
-| `ANTHROPIC_API_KEY` | Optional matrix leg, model `claude-haiku-4-5`. Skipped when the secret is empty. |
-
-The live job crawls at most 3 pages and 4 flows, times out after 15 minutes, and uploads the run report and screenshots when it fails.
-
 ## Pull request checklist
 
 - [ ] `npm run build` passes (`tsc` with no errors).
@@ -77,3 +55,19 @@ Be kind. See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 - Documentation: [docs.monkeytest.ai](https://docs.monkeytest.ai)
 - Hosted product (no self-hosting required): [monkeytest.ai](https://monkeytest.ai)
+
+## Layered tests
+
+`npm test` is the contributor suite. It needs no API key. It includes the Vitest unit tests and a stub LLM against `test/fixtures/demo-app` (a page error, a link to a 404, a form that returns 500, and a disabled button). CI runs that command on every pull request.
+
+Maintainers can run the same fixture with a real model via `.github/workflows/e2e-live.yml` (Actions → **Live e2e** → Run workflow). The workflow also runs nightly and on pushes to `main`. Pull requests stay on `npm test`, so a fork never receives the keys.
+
+Add repository secrets under Settings → Secrets and variables → Actions:
+
+| Secret | Role |
+| --- | --- |
+| `GEMINI_API_KEY` | Default live run, model `gemini-flash-lite-latest`. A manual or scheduled run fails when this secret is missing. A push to `main` skips the Gemini leg instead, so the branch stays green before the secret exists. |
+| `OPENAI_API_KEY` | Optional matrix leg, model `gpt-4o-mini`. Skipped when the secret is empty. |
+| `ANTHROPIC_API_KEY` | Optional matrix leg, model `claude-haiku-4-5`. Skipped when the secret is empty. |
+
+The live job crawls at most 3 pages and 4 flows, times out after 15 minutes, and uploads the run report and screenshots when it fails.

@@ -17,14 +17,15 @@ describe('diffRuns', () => {
       location: 'https://shop.example/users/8',
       locator: { strategy: 'role', target: 'button:Save', role: 'button', name: 'Save' },
     });
-    expect(fill.fingerprint).toBe(click.fingerprint);
+    expect(fill.fingerprintV2).toBe(click.fingerprintV2);
+    expect(fill.fingerprint).not.toBe(click.fingerprint);
 
     const diff = diffRuns(
-      runOf([bug(click.fingerprint, 'major', click.parts)]),
-      runOf([bug('this-stored-string-is-stale', 'major', fill.parts)]),
+      runOf([bug(click.fingerprint, 'major', click.parts, click.fingerprintV2)]),
+      runOf([bug(fill.fingerprint, 'major', fill.parts, fill.fingerprintV2)]),
     );
     expect(diff.stats).toMatchObject({ new: 0, fixed: 0, persisting: 1, regressed: 0, delta: 0 });
-    expect(diff.persistingBugs[0].fingerprint).toBe(click.fingerprint);
+    expect(diff.persistingBugs[0].fingerprint).toBe(click.fingerprintV2);
     expect(summariseDiff(diff)).toBe('0 new, 0 fixed, 1 still broken, 0 regressed (net 0)');
   });
 
@@ -52,12 +53,30 @@ describe('diffRuns', () => {
       locator: { strategy: 'role', target: 'button:Pay', role: 'button', name: 'Pay' },
     });
     const diff = diffRuns(
-      runOf([bug(save.fingerprint, 'major', save.parts)]),
-      runOf([bug(pay.fingerprint, 'major', pay.parts)]),
+      runOf([bug('v1-save', 'major', save.parts, save.fingerprintV2)]),
+      runOf([bug('v1-pay', 'major', pay.parts, pay.fingerprintV2)]),
     );
     expect(diff.stats.fixed).toBe(1);
     expect(diff.stats.new).toBe(1);
     expect(diff.stats.persisting).toBe(0);
+  });
+
+  it('matches a stored v1 fingerprint when the new bug also carries fingerprintV2', () => {
+    const stable = fingerprintFailure({
+      action: 'Click the Sign in button',
+      tool: 'click',
+      error: 'Timeout 15000ms exceeded',
+      location: 'https://shop.example/login',
+      locator: { strategy: 'role', target: 'button:Sign in', role: 'button', name: 'Sign in' },
+    });
+    expect(stable.fingerprint).toBe('ba31f6c9372c01be');
+    const stored = bug(stable.fingerprint, 'major');
+    const upgraded = bug(stable.fingerprint, 'major', stable.parts, stable.fingerprintV2);
+    const forward = diffRuns(runOf([stored]), runOf([upgraded]));
+    const backward = diffRuns(runOf([upgraded]), runOf([stored]));
+    expect(forward.stats).toMatchObject({ new: 0, fixed: 0, persisting: 1, regressed: 0 });
+    expect(backward.stats).toMatchObject({ new: 0, fixed: 0, persisting: 1, regressed: 0 });
+    expect(forward.persistingBugs[0].fingerprint).toBe('ba31f6c9372c01be');
   });
 });
 
@@ -65,10 +84,12 @@ function bug(
   fingerprint: string,
   severity: BugReport['severity'],
   parts?: BugReport['fingerprintParts'],
+  fingerprintV2?: string,
 ): BugReport {
   return {
     id: `bug-${fingerprint}`,
     fingerprint,
+    ...(fingerprintV2 ? { fingerprintV2 } : {}),
     ...(parts ? { fingerprintParts: parts } : {}),
     title: 'Checkout failed',
     severity,

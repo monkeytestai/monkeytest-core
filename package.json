@@ -55,10 +55,10 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "build": "rm -f .tsbuildinfo && tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "explore": "tsx src/cli.ts explore",
+    "test": "vitest run",
     "clean": "rm -rf dist .tsbuildinfo",
     "prepack": "npm run clean && npm run build",
     "docs:dev": "vitepress dev docs",

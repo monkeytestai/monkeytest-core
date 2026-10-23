@@ -47,7 +47,7 @@ import {
   savePlan, loadPlan, saveRun, loadRun, listRuns,
   type StoredRun,
 } from './persistence/index.js';
-import { diffRuns, summariseDiff } from './diff/index.js';
+import { bugMatchesFingerprint, diffRuns, summariseDiff } from './diff/index.js';
 import { replayTraces } from './runner/replay.js';
 import { triage } from './triager/index.js';
 import { verifyBugs, type VerifyReport } from './verify/index.js';
@@ -341,7 +341,7 @@ async function cmdExplore(url: string | undefined, opts: CommonOpts){
   if (!url) die(2, 'Usage: monkeytest explore <url>');
   ensureLLMReady(opts);
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n→ Exploring ${tty(url, 'cyan')} (max ${opts.maxPages} pages, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -379,7 +379,7 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n→ Running ${tty(url, 'cyan')} (max ${opts.maxPages} pages, ${opts.maxFlows} flows, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -459,6 +459,7 @@ async function replayStoredRun(stored: StoredRun, traces: FlowTrace[], opts: Com
     headless: opts.headless,
     heal: opts.heal,
     llm: opts.heal ? runnerLLM(opts) : undefined,
+    strictOracles: true,
   });
   const run = triage(raw);
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
@@ -503,7 +504,7 @@ async function rerunStoredPlan(stored: StoredRun | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n↻ Re-running ${storedPlan.plan.flows.length} flow(s) from ${tty(relative(process.cwd(), planSource), 'cyan')}…\n`);
 
   const t0 = Date.now();
@@ -545,7 +546,7 @@ async function rerunStoredPlan(stored: StoredRun | undefined, opts: CommonOpts){
 
 async function cmdVerify(positional: string | undefined, opts: CommonOpts){
   const stored = resolveStoredRun(positional, opts);
-  if (opts.bug && !stored.run.bugs.some(bug => bug.fingerprint === opts.bug)){
+  if (opts.bug && !stored.run.bugs.some(bug => bugMatchesFingerprint(bug, opts.bug!))){
     const known = stored.run.bugs.map(bug => bug.fingerprint).slice(0, 8).join(', ');
     die(2, `No bug with fingerprint ${opts.bug} on run ${stored.id}.${known ? ` Known: ${known}` : ''}`);
   }
@@ -567,6 +568,7 @@ async function cmdVerify(positional: string | undefined, opts: CommonOpts){
     repeat: opts.repeat,
     fingerprints: opts.bug ? [opts.bug] : undefined,
     recordVideo: false,
+    strictOracles: true,
   });
 
   if (opts.json){
@@ -713,7 +715,8 @@ function printVerifyTable(runId: string, report: VerifyReport){
       : row.verdict === 'flaky' ? 'yellow'
       : row.verdict === 'healed' ? 'cyan'
       : 'dim';
-    console.log(`  ${row.fingerprint.padEnd(18)} ${tty(row.verdict.padEnd(14), colour)} ${`${row.fired}/${row.repeat}`.padEnd(8)} ${truncate(row.title, 72)}`);
+    const shown = row.fingerprintV2 || row.fingerprint;
+    console.log(`  ${shown.padEnd(18)} ${tty(row.verdict.padEnd(14), colour)} ${`${row.fired}/${row.repeat}`.padEnd(8)} ${truncate(row.title, 72)}`);
     if (row.verdict !== 'fixed'){
       console.log(`  ${''.padEnd(18)} ${tty(truncate(row.detail, 110), 'dim')}`);
     }

@@ -28,6 +28,13 @@ import type {
 
 export interface MonkeyConfig {
   llm: MonkeyLLMConfig;
+  /**
+   * Turn on the v2 step oracles (uncaught page error, document HTTP 404,
+   * action HTTP 5xx, disabled control). Default false, so existing
+   * `new Monkey(...)` callers keep the same bug counts and `flowsFailed`.
+   * The CLI sets this to true.
+   */
+  strictOracles?: boolean;
 }
 
 export interface ExploreAndPlanOptions {
@@ -64,6 +71,8 @@ export class Monkey {
   private readonly runnerLLM: LLM;
   /** Optional polish LLM; when present, the triager rewrites bug copy. */
   private readonly triagerLLM?: LLM;
+  /** v2 product oracles. Off unless the caller opts in. */
+  private readonly strictOracles: boolean;
 
   constructor(config: MonkeyConfig){
 
@@ -78,6 +87,7 @@ export class Monkey {
     // Triager polish is fully opt-in. When unset, the deterministic
     // rule-based triager runs alone (zero LLM cost).
     this.triagerLLM  = config.llm.triager ? createLLM(config.llm.triager) : undefined;
+    this.strictOracles = config.strictOracles === true;
 
   }
 
@@ -150,7 +160,11 @@ export class Monkey {
         message: `Running ${testPlan.flows.length} flow${testPlan.flows.length === 1 ? '' : 's'}…`,
         data: { flows: testPlan.flows.length },
       });
-      rawRun = await runPlan(testPlan, this.runnerLLM, { ...opts.run, events });
+      rawRun = await runPlan(testPlan, this.runnerLLM, {
+        ...opts.run,
+        events,
+        strictOracles: opts.run.strictOracles ?? this.strictOracles,
+      });
       events.emit({
         phase: 'runner', type: 'run.complete',
         message: `Run complete: ${rawRun.stats.flowsPassed}/${rawRun.stats.flowsTotal} flows passed.`,
@@ -239,7 +253,11 @@ export class Monkey {
         message: `Re-running ${testPlan.flows.length} stored flow${testPlan.flows.length === 1 ? '' : 's'}…`,
         data: { flows: testPlan.flows.length, mode: 'rerun' },
       });
-      rawRun = await runPlan(testPlan, this.runnerLLM, { ...opts.run, events });
+      rawRun = await runPlan(testPlan, this.runnerLLM, {
+        ...opts.run,
+        events,
+        strictOracles: opts.run.strictOracles ?? this.strictOracles,
+      });
       events.emit({
         phase: 'runner', type: 'run.complete',
         message: `Re-run complete: ${rawRun.stats.flowsPassed}/${rawRun.stats.flowsTotal} flows passed.`,
@@ -290,6 +308,7 @@ export class Monkey {
       ...opts,
       heal: opts.heal,
       llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
+      strictOracles: opts.strictOracles ?? this.strictOracles,
     });
     const run = this.triagerLLM
       ? await triagePolished(raw, { llm: this.triagerLLM })
@@ -305,6 +324,7 @@ export class Monkey {
     return verifyBugs(source, {
       ...opts,
       llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
+      strictOracles: opts.strictOracles ?? this.strictOracles,
     });
   }
 

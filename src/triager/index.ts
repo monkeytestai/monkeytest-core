@@ -34,7 +34,7 @@ import type {
   BugEvidence,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
-import { failureLocation, fingerprintFailure } from '../trace/fingerprint.js';
+import { failureLocation, fingerprintFailure, legacyFingerprint } from '../trace/fingerprint.js';
 import { bugTracePrefix } from '../trace/serialize.js';
 
 export interface TriageOptions {
@@ -192,7 +192,13 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
   const traceStep = flow.trace?.steps.find(item => item.index === step.index);
   const networkStatus = (step.networkFailures || []).find(item => (item.status || 0) >= 500)?.status;
 
-  const { fingerprint, parts } = fingerprintFailure({
+  const fingerprint = legacyFingerprint({
+    action: step.action,
+    tool: step.tool,
+    error: step.error,
+  });
+  const stable = fingerprintFailure({
+    action: step.action,
     tool: traceStep?.tool || step.tool,
     error: step.error,
     observation,
@@ -231,7 +237,8 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
   return {
     id,
     fingerprint,
-    fingerprintParts: parts,
+    fingerprintV2: stable.fingerprintV2,
+    fingerprintParts: stable.parts,
     ...(trace && trace.steps.length > 0 ? { trace } : {}),
     title: shortTitle(flow, step),
     severity,

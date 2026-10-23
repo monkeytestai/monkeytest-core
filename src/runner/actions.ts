@@ -111,7 +111,12 @@ export interface ActionOutcome {
   error?: string;
 }
 
-export async function executeAction(page: Page, action: ResolvedAction, timeoutMs: number): Promise<ActionOutcome> {
+export async function executeAction(
+  page: Page,
+  action: ResolvedAction,
+  timeoutMs: number,
+  options?: { strictOracles?: boolean },
+): Promise<ActionOutcome> {
 
   try {
 
@@ -119,8 +124,10 @@ export async function executeAction(page: Page, action: ResolvedAction, timeoutM
 
       case 'click': {
         const locator = buildLocator(page, action);
-        const disabled = await failIfDisabled(locator, action);
-        if (disabled) return disabled;
+        if (options?.strictOracles) {
+          const disabled = await failIfDisabled(locator, action);
+          if (disabled) return disabled;
+        }
         await locator.first().click({ timeout: timeoutMs });
         await settleSPA(page).catch(() => {});
         return { status: 'passed', observation: `Clicked ${describeTarget(action)}.` };
@@ -165,8 +172,10 @@ export async function executeAction(page: Page, action: ResolvedAction, timeoutM
         const key = action.value || 'Enter';
         if (action.target){
           const locator = buildLocator(page, action);
-          const disabled = await failIfDisabled(locator, action);
-          if (disabled) return disabled;
+          if (options?.strictOracles) {
+            const disabled = await failIfDisabled(locator, action);
+            if (disabled) return disabled;
+          }
           await locator.first().press(key, { timeout: timeoutMs });
         } else {
           await page.keyboard.press(key);

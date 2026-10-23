@@ -27,5 +27,7 @@ jobs:
       # A real-model run lives in e2e-live.yml and does not run on pull_request.
       - run: npm test
       - run: npm run build
+      - name: Verify the build emitted JavaScript
+        run: test -f dist/cli.js && test -f dist/index.js
       - name: Verify package can be packed
         run: npm pack --dry-run

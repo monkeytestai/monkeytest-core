@@ -6,18 +6,14 @@
  *   "I ran tests yesterday, fixed the 3 reported bugs, ran them again today
  *    — what's new, what's gone, and what came back?"
  *
- * Bug identity is the v2 fingerprint: failure category, URL template,
- * target role + name, and a normalised error signal. The LLM's tool choice
- * and raw error text are not part of the key, so the same bug cannot show
- * up as both "fixed" and "new" just because a later run picked a different
- * tool or the message contained a new id.
- *
- * Bugs written before v2 have no `fingerprintParts`. Those keep the hash
- * stored on the run file, so diffing two historical runs still works.
+ * When both runs carry `fingerprintV2`, that stable hash is the identity
+ * (category, URL template, role + name, error signal — not the tool).
+ * Otherwise the diff uses `fingerprint`, the legacy v1 hash. A stored bug
+ * that only has v1 therefore still matches a new bug with the same v1
+ * value, instead of showing up as fixed and new.
  */
 
 import type { BugReport, RunResult } from '../types.js';
-import { fingerprintFromParts } from '../trace/fingerprint.js';
 
 export type RunDiffStatus = 'new' | 'fixed' | 'persisting' | 'regressed';
 
@@ -67,17 +63,25 @@ const SEVERITY_RANK: Record<BugReport['severity'], number> = {
 };
 
 /**
- * Identity used by the diff. v2 parts win over the stored string so a stale
- * hash cannot split one bug into fixed+new. Legacy bugs (no parts) use the
- * hash they were saved with.
+ * Identity used by the diff.
+ *
+ * Pass `preferV2: true` only when every bug on both sides has
+ * `fingerprintV2`. Otherwise this returns the legacy `fingerprint`, which
+ * is what hosts already store and compare.
  */
-export function bugFingerprint(bug: BugReport): string {
-  const parts = bug.fingerprintParts;
-  if (parts?.version === 2){
-    try { return fingerprintFromParts(parts); }
-    catch { /* fall through to the stored hash */ }
-  }
+export function bugFingerprint(bug: BugReport, preferV2 = false): string {
+  if (preferV2 && bug.fingerprintV2) return bug.fingerprintV2;
   return bug.fingerprint;
+}
+
+/** True when a `--bug` value names either the legacy hash or `fingerprintV2`. */
+export function bugMatchesFingerprint(bug: BugReport, fingerprint: string): boolean {
+  return bug.fingerprint === fingerprint || bug.fingerprintV2 === fingerprint;
+}
+
+function bothSidesHaveV2(previous: RunResult, current: RunResult): boolean {
+  const bugs = [...previous.bugs, ...current.bugs];
+  return bugs.length > 0 && bugs.every(bug => !!bug.fingerprintV2);
 }
 
 /**
@@ -89,8 +93,9 @@ export function bugFingerprint(bug: BugReport): string {
  */
 export function diffRuns(previous: RunResult, current: RunResult): RunDiff {
 
-  const prevByFp = new Map(previous.bugs.map(b => [bugFingerprint(b), b]));
-  const currByFp = new Map(current.bugs.map(b => [bugFingerprint(b), b]));
+  const preferV2 = bothSidesHaveV2(previous, current);
+  const prevByFp = new Map(previous.bugs.map(b => [bugFingerprint(b, preferV2), b]));
+  const currByFp = new Map(current.bugs.map(b => [bugFingerprint(b, preferV2), b]));
 
   const newBugs: BugDiffEntry[] = [];
   const fixedBugs: BugDiffEntry[] = [];

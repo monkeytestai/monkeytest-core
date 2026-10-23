@@ -26,7 +26,9 @@ Runs written before traces existed still load. Their bugs have no `trace`, and `
 
 ## Fingerprints
 
-New bugs are keyed by four things. The hash does **not** include the LLM's tool choice or the raw error string.
+`bug.fingerprint` is the original 16-character hash: action text, tool, and a small error code. New runs still write that same value, so a bug already stored by a host keeps matching. Hosts that only saved `fingerprint` (and dropped `fingerprintParts` or `trace`) do not need a migration.
+
+`bug.fingerprintV2` is an extra field. It is a hash of:
 
 | Part | What is stored |
 | ---- | -------------- |
@@ -35,7 +37,11 @@ New bugs are keyed by four things. The hash does **not** include the LLM's tool 
 | Role + name | Accessible role and name of the target. CSS selectors are not part of the key. |
 | Error signal | A coarse class such as `target-not-found` or `not-editable`. Numbers, ids, and timestamps are stripped. |
 
-The parts are saved on `bug.fingerprintParts` (`version: 2`). `monkeytest diff` recomputes the hash from those parts. Older bugs keep the fingerprint string they were saved with, so two historical runs still diff against each other.
+The parts are saved on `bug.fingerprintParts` (`version: 2`). The tool name and the raw error text are not inputs, so two runs that picked different tools still share one `fingerprintV2`.
+
+`monkeytest diff` and `monkeytest verify` use `fingerprintV2` when both bugs have it, and `fingerprint` otherwise. Switch a stored comparison over to `fingerprintV2` when you are ready. A later major version can make that the default. Until then, `fingerprint` stays the legacy hash.
+
+The CLI also fails a step when the page throws, the document is HTTP 404, the action returns HTTP 5xx, or the control is disabled. `new Monkey(...)` leaves those oracles off, so library callers keep the same bug counts. Pass `strictOracles: true` to opt in. `run.strictOracles` on a single call overrides the constructor.
 
 ## `monkeytest rerun`
 

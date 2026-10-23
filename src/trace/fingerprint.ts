@@ -11,9 +11,10 @@
  *   role, name  — accessible role + name of the target element
  *   errorSignal — coarse error class; numbers, ids, and timestamps stripped
  *
- * v1 fingerprints (action text + tool + raw error) stay readable on old run
- * files. New triage always writes v2. `diffRuns` prefers `fingerprintParts`
- * when they are present and falls back to the stored string otherwise.
+ * `BugReport.fingerprint` stays the legacy v1 hash (action text + tool + a
+ * small error code), byte-for-byte with older engines, so a stored bug still
+ * matches after upgrade. The stable hash is the additive `fingerprintV2`.
+ * `diffRuns` uses v2 only when both runs carry it, and uses v1 otherwise.
  */
 
 import { createHash } from 'node:crypto';
@@ -186,6 +187,8 @@ export function failureLocation(input: {
 }
 
 export interface FingerprintInput {
+  /** Step instruction. Required for a byte-identical v1 `fingerprint`. */
+  action?: string;
   tool?: string;
   error?: string;
   observation?: string;
@@ -208,8 +211,28 @@ export function fingerprintFromParts(parts: FingerprintParts): string {
   return createHash('sha1').update(material).digest('hex').slice(0, 16);
 }
 
-/** Build the v2 fingerprint. The tool name is not part of the hash. */
-export function fingerprintFailure(input: FingerprintInput): { fingerprint: string; parts: FingerprintParts } {
+/**
+ * Legacy v1 hash. This is the algorithm shipped before stable fingerprints:
+ * sha1 of `action | tool | errorCode`, first 16 hex chars. Do not change it.
+ * Stored bugs only have this string, so they cannot be re-hashed.
+ */
+export function legacyFingerprint(step: { action: string; tool?: string; error?: string }): string {
+  return createHash('sha1')
+    .update([
+      step.action.trim().toLowerCase(),
+      step.tool || 'unknown',
+      legacyErrorCode(step.error),
+    ].join('|'))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/** Build both hashes. `fingerprint` is v1; `fingerprintV2` ignores the tool name. */
+export function fingerprintFailure(input: FingerprintInput): {
+  fingerprint: string;
+  fingerprintV2: string;
+  parts: FingerprintParts;
+} {
   const errorSignal = normaliseErrorSignal(input.error || input.observation);
   const category = failureCategory({ ...input, errorSignal });
   const identity = targetIdentity(input.locator, input.target, input.tool);
@@ -221,7 +244,28 @@ export function fingerprintFailure(input: FingerprintInput): { fingerprint: stri
     name: identity.name,
     errorSignal,
   };
-  return { fingerprint: fingerprintFromParts(parts), parts };
+  return {
+    fingerprint: legacyFingerprint({
+      action: input.action || '',
+      tool: input.tool,
+      error: input.error,
+    }),
+    fingerprintV2: fingerprintFromParts(parts),
+    parts,
+  };
+}
+
+/** The v1 error code. Order and wording match the historical triager. */
+function legacyErrorCode(error: string | undefined): string {
+  const err = (error || '').toLowerCase();
+  if (!err) return 'no-error';
+  if (err.includes('timeout')) return 'timeout';
+  if (err.includes('not found') || err.includes('no element')) return 'selector-missing';
+  if (err.includes('not visible') || err.includes('hidden')) return 'element-hidden';
+  if (err.includes('navigation')) return 'navigation-failed';
+  if (err.includes('assertion_failed')) return 'assertion-failed';
+  if (err.includes('invalid_url')) return 'invalid-url';
+  return err.replace(/\s+/g, '-').slice(0, 40);
 }
 
 /* ── internals ────────────────────────────────────────────────────────── */

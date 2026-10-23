@@ -390,16 +390,18 @@ export interface BugEvidence {
 export interface BugReport {
   id: string;
   /**
-   * Stable hash across runs so "fixed" / "regressed" become real concepts.
-   *
-   * v2 (current): sha1 of `category | location | role | name | errorSignal`.
-   * The LLM tool name and raw error text are not inputs. See `fingerprintParts`.
-   *
-   * v1 (historical run files): sha1 of action text + tool + a lightly
-   * normalised error string. Readers keep that stored hash so old diffs
-   * stay valid; new triage always writes v2.
+   * Legacy identity. sha1 of action text + tool + a small error code, 16 hex
+   * chars. New triage still writes this exact algorithm so bugs already
+   * stored by a host (and compared as strings) keep matching. The stable
+   * identity is `fingerprintV2`.
    */
   fingerprint: string;
+  /**
+   * Stable identity: sha1 of `category | location | role | name | errorSignal`.
+   * The LLM tool name and raw error text are not inputs. Absent on bugs
+   * written before this field existed. See `fingerprintParts`.
+   */
+  fingerprintV2?: string;
   /** Present on bugs triaged with the v2 scheme. */
   fingerprintParts?: FingerprintParts;
   /**

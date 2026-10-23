@@ -7,6 +7,7 @@ dist/
 *.log
 .DS_Store
 coverage/
+e2e-artifacts/
 .turbo/
 docs/.vitepress/cache
 docs/.vitepress/dist

@@ -26,6 +26,11 @@
  * Plan files are tiny (a few KB) and well-suited to git. Run files contain
  * absolute paths to evidence under `shots/`; consumers should treat those
  * paths as opaque (or rebase to relative on read).
+ *
+ * Schema stays at 1. Action traces (`flow.trace`, `bug.trace`),
+ * `fingerprintV2`, and `fingerprintParts` are optional, so run files written
+ * by older engines still load. `fingerprint` remains the legacy v1 hash.
+ * Older bugs have no trace, so `verify` reports them `blocked`.
  */
 
 import { mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';

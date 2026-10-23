@@ -6,9 +6,11 @@
  *   "I ran tests yesterday, fixed the 3 reported bugs, ran them again today
  *    — what's new, what's gone, and what came back?"
  *
- * Bug `fingerprint` is intentionally stable across runs (action text +
- * tool + normalised error code), so the diff is just a set operation on
- * those fingerprints.
+ * When both runs carry `fingerprintV2`, that stable hash is the identity
+ * (category, URL template, role + name, error signal — not the tool).
+ * Otherwise the diff uses `fingerprint`, the legacy v1 hash. A stored bug
+ * that only has v1 therefore still matches a new bug with the same v1
+ * value, instead of showing up as fixed and new.
  */
 
 import type { BugReport, RunResult } from '../types.js';
@@ -61,6 +63,28 @@ const SEVERITY_RANK: Record<BugReport['severity'], number> = {
 };
 
 /**
+ * Identity used by the diff.
+ *
+ * Pass `preferV2: true` only when every bug on both sides has
+ * `fingerprintV2`. Otherwise this returns the legacy `fingerprint`, which
+ * is what hosts already store and compare.
+ */
+export function bugFingerprint(bug: BugReport, preferV2 = false): string {
+  if (preferV2 && bug.fingerprintV2) return bug.fingerprintV2;
+  return bug.fingerprint;
+}
+
+/** True when a `--bug` value names either the legacy hash or `fingerprintV2`. */
+export function bugMatchesFingerprint(bug: BugReport, fingerprint: string): boolean {
+  return bug.fingerprint === fingerprint || bug.fingerprintV2 === fingerprint;
+}
+
+function bothSidesHaveV2(previous: RunResult, current: RunResult): boolean {
+  const bugs = [...previous.bugs, ...current.bugs];
+  return bugs.length > 0 && bugs.every(bug => !!bug.fingerprintV2);
+}
+
+/**
  * Compute the diff between two runs, keyed by stable bug fingerprint.
  *
  * Both arguments must be triaged `RunResult`s (i.e. `run.bugs[]` populated
@@ -69,8 +93,9 @@ const SEVERITY_RANK: Record<BugReport['severity'], number> = {
  */
 export function diffRuns(previous: RunResult, current: RunResult): RunDiff {
 
-  const prevByFp = new Map(previous.bugs.map(b => [b.fingerprint, b]));
-  const currByFp = new Map(current.bugs.map(b => [b.fingerprint, b]));
+  const preferV2 = bothSidesHaveV2(previous, current);
+  const prevByFp = new Map(previous.bugs.map(b => [bugFingerprint(b, preferV2), b]));
+  const currByFp = new Map(current.bugs.map(b => [bugFingerprint(b, preferV2), b]));
 
   const newBugs: BugDiffEntry[] = [];
   const fixedBugs: BugDiffEntry[] = [];

@@ -8,8 +8,10 @@
  *   monkeytest explore <url>     Crawl + plan only. Writes plan.json.
  *   monkeytest run <url>         Full pipeline: explore + plan + run + triage.
  *                                Writes plan.json + runs/<id>.json + shots/.
- *   monkeytest rerun [<runId>]   Re-execute the SAME stored plan (skip explore
- *                                + plan). Cheap, fast, deterministic.
+ *   monkeytest rerun [<runId>]   Replay the recorded action trace (no LLM).
+ *                                --heal re-resolves a step whose locator missed.
+ *   monkeytest verify [run]      Replay each bug trace and report fixed /
+ *                                still_broken / flaky / healed / blocked.
  *   monkeytest diff <a> <b>      Diff two stored runs by bug fingerprint.
  *                                "<a>" / "<b>" are run ids or "latest"/"prev".
  *   monkeytest report [<runId>]  Pretty-print a stored run (flows, bugs, paths).
@@ -23,26 +25,34 @@
  *   --flows <n>           Max flows to plan (explore/run only, default 6)
  *   --no-headless         Show the browser window
  *   --label <text>        Free-form label saved on the plan/run
- *   --json                Machine-readable output (run/diff/report)
+ *   --heal                Re-resolve a trace step when its locator misses
+ *   --repeat <n>          Replay each bug n times during `verify` (default 1)
+ *   --bug <fingerprint>   Verify a single bug
+ *   --json                Machine-readable output (run/diff/report/verify)
  *
  * Exit codes:
- *   0  success / no blocking bugs
- *   1  blocking bugs found (severity != 'minor') for `run` / `rerun`
+ *   0  success / no blocking bugs / no bug still firing
+ *   1  blocking bugs (`run` / `rerun`), new or regressed bugs (`diff`),
+ *      or any `still_broken` / `flaky` verdict (`verify`)
  *   2  invalid args / setup error
  *   3  engine / runtime error
  */
 
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import { Monkey } from './monkey.js';
+import { createLLM, type LLM } from './llm/index.js';
 import { autoLLMConfig, detectProviderFromEnv, CHEAP_FAST_MODEL } from './llm/presets.js';
 import {
   savePlan, loadPlan, saveRun, loadRun, listRuns,
   type StoredRun,
 } from './persistence/index.js';
-import { diffRuns, summariseDiff, type RunDiff } from './diff/index.js';
+import { bugMatchesFingerprint, diffRuns, summariseDiff } from './diff/index.js';
+import { replayTraces } from './runner/replay.js';
+import { triage } from './triager/index.js';
+import { verifyBugs, type VerifyReport } from './verify/index.js';
 import type {
-  LLMProvider, LLMConfig, MonkeyLLMConfig, BugReport,
+  LLMProvider, LLMConfig, MonkeyLLMConfig, BugReport, FlowTrace, RunResult,
 } from './types.js';
 
 /* ── Tiny ANSI helpers (no chalk dep) ─────────────────────────────────── */
@@ -79,6 +89,12 @@ interface CommonOpts {
   json: boolean;
   apiKey?: string;
   baseURL?: string;
+  /** Re-resolve a recorded step when every stored locator misses. */
+  heal: boolean;
+  /** How many times `verify` replays each bug. */
+  repeat: number;
+  /** Restrict `verify` to one fingerprint. */
+  bug?: string;
 }
 
 function defaultCommonOpts(): CommonOpts {
@@ -89,6 +105,8 @@ function defaultCommonOpts(): CommonOpts {
     maxFlows: 6,
     headless: true,
     json: false,
+    heal: false,
+    repeat: 1,
   };
 }
 
@@ -132,6 +150,19 @@ function parseArgs(argv: string[]): Parsed {
       case '--no-headless':                out.opts.headless = false; break;
       case '--label':                      out.opts.label = next(); break;
       case '--json':                       out.opts.json = true; break;
+      case '--heal':                       out.opts.heal = true; break;
+      case '--bug': {
+        const fp = next();
+        if (!fp) die(2, '--bug requires a fingerprint');
+        out.opts.bug = fp;
+        break;
+      }
+      case '--repeat': {
+        const n = parseInt(next(), 10);
+        if (!Number.isInteger(n) || n < 1) die(2, '--repeat must be a positive integer');
+        out.opts.repeat = n;
+        break;
+      }
       default:
         if (a.startsWith('-')){
           die(2, `Unknown flag: ${a}`);
@@ -193,7 +224,8 @@ Commands:
   ${tty('init', 'cyan')}                       Scaffold a .monkeytest/ directory.
   ${tty('explore', 'cyan')} <url>              Crawl + plan only. Writes plan.json.
   ${tty('run', 'cyan')} <url>                  Full pipeline: explore + plan + run + triage.
-  ${tty('rerun', 'cyan')} [<runId>]            Re-execute the SAME stored plan.
+  ${tty('rerun', 'cyan')} [<runId>]            Replay a stored trace. No LLM unless --heal.
+  ${tty('verify', 'cyan')} [run]               Replay each bug trace and print a verdict.
   ${tty('diff', 'cyan')} <runA> <runB>         Diff two stored runs by bug fingerprint.
   ${tty('report', 'cyan')} [<runId>]           Pretty-print a stored run.
   ${tty('help', 'cyan')} [<command>]           Show help (this page or per-command).
@@ -210,9 +242,12 @@ Common flags (apply to most commands):
       --flows <n>            Max flows to plan (default 6)
       --no-headless          Show the browser window
       --label <text>         Free-form label saved on the plan/run
+      --heal                 If a recorded locator misses, ask the LLM (rerun/verify)
+      --repeat <n>           Replay each bug n times (verify, default 1)
+      --bug <fingerprint>    Verify one bug
       --json                 Machine-readable output
 
-Exit codes: 0 ok · 1 bugs found · 2 bad args / setup · 3 engine error.
+Exit codes: 0 ok · 1 bugs still firing · 2 bad args / setup · 3 engine error.
 
 Environment:
   GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, MISTRAL_API_KEY,
@@ -220,7 +255,8 @@ Environment:
 
 Quick start:
   monkeytest run https://example.com
-  monkeytest rerun                    # rerun the same plan
+  monkeytest rerun                    # replay the latest trace, no LLM
+  monkeytest verify --repeat 3        # is each known bug actually fixed?
   monkeytest diff prev latest         # see what changed
 
 Docs: https://docs.monkeytest.ai
@@ -237,10 +273,19 @@ Crawl <url>, summarise pages, generate a TestPlan. Writes plan.json + shots/.`,
     run: `monkeytest run <url> [--max 8] [--flows 6] [--quality balanced]
 Run the full pipeline (explore + plan + run + triage). Writes plan.json,
 runs/<id>.json, and screenshots. Exits with code 1 if blocking bugs found.`,
-    rerun: `monkeytest rerun [<runId>] [--dir .monkeytest]
-Re-execute the SAME stored plan (skip explore + plan). Use this to verify
-that previously-found bugs are now fixed. Cheap, fast, deterministic.
-If <runId> is omitted, the latest stored plan is used.`,
+    rerun: `monkeytest rerun [<runId>] [--heal] [--dir .monkeytest]
+Replay the action trace stored on a run. Does not call the LLM.
+--heal re-resolves a step whose locator no longer matches and marks it healed.
+If <runId> is omitted, the latest run is replayed. Runs recorded before
+traces existed fall back to re-executing the stored plan with the LLM.`,
+    verify: `monkeytest verify [runDir|runId] [--bug <fingerprint>] [--repeat N] [--heal]
+Replay each known bug's trace and print a verdict:
+  fixed         the failing step passed on every attempt
+  still_broken  the failing step failed on every attempt
+  flaky         the bug fired on some but not all attempts
+  healed        a stale locator was re-resolved (--heal) and the bug did not recur
+  blocked       the failing step could not be reached
+Exit 1 if any bug is still_broken or flaky. --json prints the report.`,
     diff: `monkeytest diff <runA> <runB>
 Diff two stored runs by stable bug fingerprint. Use "latest"/"prev" as
 shortcuts. Prints new / fixed / persisting / regressed bugs.`,
@@ -296,7 +341,7 @@ async function cmdExplore(url: string | undefined, opts: CommonOpts){
   if (!url) die(2, 'Usage: monkeytest explore <url>');
   ensureLLMReady(opts);
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n→ Exploring ${tty(url, 'cyan')} (max ${opts.maxPages} pages, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -334,7 +379,7 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n→ Running ${tty(url, 'cyan')} (max ${opts.maxPages} pages, ${opts.maxFlows} flows, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -388,22 +433,69 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
 }
 
 async function cmdRerun(runId: string | undefined, opts: CommonOpts){
+  const stored = storedRunForRerun(runId, opts);
+  const traces = stored ? tracesOf(stored.run) : [];
+
+  if (stored && traces.length > 0){
+    return replayStoredRun(stored, traces, opts);
+  }
+
+  if (stored){
+    console.log(tty('No action trace on this run. Falling back to LLM re-resolution of the stored plan.', 'yellow'));
+  }
+  return rerunStoredPlan(stored, opts);
+}
+
+async function replayStoredRun(stored: StoredRun, traces: FlowTrace[], opts: CommonOpts){
+  if (opts.heal) ensureLLMReady(opts);
+
+  const screenshotsDir = resolve(opts.dir, 'shots');
+  mkdirSync(screenshotsDir, { recursive: true });
+
+  console.log(`\n↻ Replaying ${traces.length} trace(s) from ${tty(stored.id, 'cyan')}${opts.heal ? ' (heal on)' : ''}…\n`);
+  const t0 = Date.now();
+  const raw = await replayTraces(traces, {
+    screenshotsDir,
+    headless: opts.headless,
+    heal: opts.heal,
+    llm: opts.heal ? runnerLLM(opts) : undefined,
+    strictOracles: true,
+  });
+  const run = triage(raw);
+  const dt = ((Date.now() - t0) / 1000).toFixed(1);
+  const { path: runFile, id: newRunId } = saveRun(run, {
+    dir: opts.dir,
+    planRef: stored.planRef,
+    engine: ENGINE_VERSION,
+  });
+
+  if (opts.json){
+    console.log(JSON.stringify({ run, runId: newRunId, runFile, replay: true, heal: opts.heal }, null, 2));
+  } else {
+    console.log(summariseRun(run));
+    const healed = run.flows.reduce((n, flow) => n + flow.steps.filter(step => step.resolution === 'healed').length, 0);
+    if (healed) console.log(`  healed steps: ${healed}`);
+  }
+  console.log(`\n${tty('✓', 'green')} Replay complete in ${dt}s.`);
+  console.log(`  ${tty('run', 'dim')} → ${relative(process.cwd(), runFile)}  (id: ${tty(newRunId, 'cyan')})`);
+  suggestDiff(opts.dir, newRunId);
+  exitIfBlocking(run);
+}
+
+async function rerunStoredPlan(stored: StoredRun | undefined, opts: CommonOpts){
   ensureLLMReady(opts);
 
-  // Resolve plan: explicit runId means "use the plan stored alongside that run",
+  // Resolve plan: an explicit run means "use the plan stored alongside that run",
   // otherwise just load the canonical plan.json.
   let storedPlan;
   let planSource: string;
 
-  if (runId){
-    const stored = loadRun(runId, { dir: opts.dir });
-    if (stored.planRef?.path){
-      storedPlan = loadPlan(stored.planRef.path);
-      planSource = stored.planRef.path;
-    } else {
-      die(2, `Stored run ${runId} has no planRef. Cannot rerun.`);
-      return;
-    }
+  if (stored?.planRef?.path){
+    storedPlan = loadPlan(stored.planRef.path);
+    planSource = stored.planRef.path;
+  } else if (stored){
+    die(2, `Stored run ${stored.id} has no action trace and no planRef. Cannot rerun.`);
+    return;
   } else {
     storedPlan = loadPlan(opts.dir);
     planSource = resolve(opts.dir, 'plan.json');
@@ -412,7 +504,7 @@ async function cmdRerun(runId: string | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts) });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
   console.log(`\n↻ Re-running ${storedPlan.plan.flows.length} flow(s) from ${tty(relative(process.cwd(), planSource), 'cyan')}…\n`);
 
   const t0 = Date.now();
@@ -449,10 +541,46 @@ async function cmdRerun(runId: string | undefined, opts: CommonOpts){
     console.log(`  ${tty(`monkeytest diff ${previousId} ${newRunId}`, 'cyan')}`);
   }
 
-  const blocking = run.bugs.filter(b => b.severity !== 'minor');
-  if (blocking.length){
-    console.error(`\n${tty(`✗ ${blocking.length} blocking bug${blocking.length === 1 ? '' : 's'} still failing.`, 'red')}`);
-    process.exit(1);
+  exitIfBlocking(run);
+}
+
+async function cmdVerify(positional: string | undefined, opts: CommonOpts){
+  const stored = resolveStoredRun(positional, opts);
+  if (opts.bug && !stored.run.bugs.some(bug => bugMatchesFingerprint(bug, opts.bug!))){
+    const known = stored.run.bugs.map(bug => bug.fingerprint).slice(0, 8).join(', ');
+    die(2, `No bug with fingerprint ${opts.bug} on run ${stored.id}.${known ? ` Known: ${known}` : ''}`);
+  }
+  if (opts.heal) ensureLLMReady(opts);
+
+  const screenshotsDir = resolve(opts.dir, 'shots');
+  mkdirSync(screenshotsDir, { recursive: true });
+
+  if (!opts.json){
+    const scope = opts.bug ? `bug ${opts.bug}` : `${stored.run.bugs.length} bug(s)`;
+    console.log(`\n→ Verifying ${scope} from ${tty(stored.id, 'cyan')} (repeat ${opts.repeat}${opts.heal ? ', heal' : ''})…\n`);
+  }
+
+  const report = await verifyBugs(stored.run, {
+    screenshotsDir,
+    headless: opts.headless,
+    heal: opts.heal,
+    llm: opts.heal ? runnerLLM(opts) : undefined,
+    repeat: opts.repeat,
+    fingerprints: opts.bug ? [opts.bug] : undefined,
+    recordVideo: false,
+    strictOracles: true,
+  });
+
+  if (opts.json){
+    console.log(JSON.stringify({ runId: stored.id, ...report }, null, 2));
+  } else {
+    printVerifyTable(stored.id, report);
+  }
+
+  if (report.exitCode !== 0){
+    const broken = report.stats.still_broken + report.stats.flaky;
+    console.error(tty(`✗ ${broken} bug${broken === 1 ? '' : 's'} still firing.`, 'red'));
+    process.exit(report.exitCode);
   }
 }
 
@@ -566,6 +694,88 @@ function printDiffSection(title: string, entries: { fingerprint: string; bug: Bu
   console.log();
 }
 
+function printVerifyTable(runId: string, report: VerifyReport){
+  const { stats } = report;
+  console.log(`${tty('Verify', 'bold')} ${tty(runId, 'dim')}`);
+  console.log(
+    `  ${tty(String(stats.fixed), 'green')} fixed, `
+    + `${tty(String(stats.still_broken), stats.still_broken ? 'red' : 'dim')} still broken, `
+    + `${tty(String(stats.flaky), stats.flaky ? 'yellow' : 'dim')} flaky, `
+    + `${tty(String(stats.healed), stats.healed ? 'cyan' : 'dim')} healed, `
+    + `${tty(String(stats.blocked), 'dim')} blocked\n`,
+  );
+  if (report.results.length === 0){
+    console.log('  No bugs to verify.\n');
+    return;
+  }
+  console.log(`  ${'fingerprint'.padEnd(18)} ${'verdict'.padEnd(14)} ${'fired'.padEnd(8)} title`);
+  for (const row of report.results){
+    const colour = row.verdict === 'fixed' ? 'green'
+      : row.verdict === 'still_broken' ? 'red'
+      : row.verdict === 'flaky' ? 'yellow'
+      : row.verdict === 'healed' ? 'cyan'
+      : 'dim';
+    const shown = row.fingerprintV2 || row.fingerprint;
+    console.log(`  ${shown.padEnd(18)} ${tty(row.verdict.padEnd(14), colour)} ${`${row.fired}/${row.repeat}`.padEnd(8)} ${truncate(row.title, 72)}`);
+    if (row.verdict !== 'fixed'){
+      console.log(`  ${''.padEnd(18)} ${tty(truncate(row.detail, 110), 'dim')}`);
+    }
+  }
+  console.log();
+}
+
+function storedRunForRerun(runId: string | undefined, opts: CommonOpts): StoredRun | undefined {
+  if (runId) return loadRun(runId, { dir: opts.dir });
+  const ids = listRuns(opts.dir);
+  if (ids.length === 0) return undefined;
+  return loadRun(ids[0], { dir: opts.dir });
+}
+
+function resolveStoredRun(positional: string | undefined, opts: CommonOpts): StoredRun {
+  if (!positional || positional === 'latest' || positional === 'prev'){
+    const ids = listRuns(opts.dir);
+    const id = positional === 'prev' ? ids[1] : ids[0];
+    if (!id) die(2, `No runs found under ${resolve(opts.dir, 'runs')}.`);
+    return loadRun(id, { dir: opts.dir });
+  }
+  const abs = resolve(positional);
+  if (existsSync(abs) && statSync(abs).isDirectory()){
+    return loadRun('latest', { dir: abs });
+  }
+  if (positional.endsWith('.json') || existsSync(abs)){
+    return loadRun(abs);
+  }
+  return loadRun(positional, { dir: opts.dir });
+}
+
+function tracesOf(run: RunResult): FlowTrace[] {
+  return run.flows
+    .map(flow => flow.trace)
+    .filter((trace): trace is FlowTrace => !!trace && trace.steps.length > 0);
+}
+
+function runnerLLM(opts: CommonOpts): LLM {
+  const cfg = buildLLMConfig(opts);
+  return createLLM(cfg.runner ?? cfg.planner);
+}
+
+function suggestDiff(dir: string, newRunId: string){
+  const ids = listRuns(dir);
+  if (ids.length >= 2){
+    const previousId = ids[1];
+    console.log(`\n${tty('Tip:', 'dim')} compare to previous run with:`);
+    console.log(`  ${tty(`monkeytest diff ${previousId} ${newRunId}`, 'cyan')}`);
+  }
+}
+
+function exitIfBlocking(run: RunResult){
+  const blocking = run.bugs.filter(bug => bug.severity !== 'minor');
+  if (blocking.length){
+    console.error(`\n${tty(`✗ ${blocking.length} blocking bug${blocking.length === 1 ? '' : 's'} still failing.`, 'red')}`);
+    process.exit(1);
+  }
+}
+
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
@@ -598,6 +808,7 @@ async function main(){
     case 'explore': return cmdExplore(args.positional[0], args.opts);
     case 'run':     return cmdRun(args.positional[0], args.opts);
     case 'rerun':   return cmdRerun(args.positional[0], args.opts);
+    case 'verify':  return cmdVerify(args.positional[0], args.opts);
     case 'diff':    return cmdDiff(args.positional[0], args.positional[1], args.opts);
     case 'report':  return cmdReport(args.positional[0], args.opts);
     default:

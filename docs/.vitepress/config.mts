@@ -49,6 +49,7 @@ export default defineConfig({
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Introduction', link: '/guide/introduction' },
             { text: 'The bug-finding loop', link: '/guide/the-bug-finding-loop' },
+            { text: 'Replay and verify', link: '/guide/replay-and-verify' },
             { text: 'How it works', link: '/guide/architecture' },
           ],
         },

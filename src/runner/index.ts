@@ -25,10 +25,9 @@
  * deterministically and reports.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page, type ConsoleMessage, type Request } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import { mkdirSync, renameSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
 import type {
   TestPlan,
@@ -38,10 +37,20 @@ import type {
   StepResult,
   StepStatus,
   RunResult,
-  ConsoleErrorEvidence,
-  NetworkFailureEvidence,
+  TraceStep,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
+import {
+  captureLocator,
+  executeAction,
+  resolveAction,
+  settleSPA,
+  skeletonForLLM,
+  type ResolvedAction,
+} from './actions.js';
+import { createFlowTimeout } from './timeout.js';
+import { applyPassedOracles, attachStepEvidence } from './evidence.js';
+import { serializeTrace, serializeTraceStep } from '../trace/serialize.js';
 
 export interface RunnerOptions {
   /**
@@ -53,10 +62,21 @@ export interface RunnerOptions {
   screenshotsDir: string;
   /** Per-step navigation/action timeout. Default 15s. */
   stepTimeoutMs?: number;
+  /**
+   * Fail a step on an uncaught page error, a document HTTP 404, an action
+   * HTTP 5xx, or a disabled control. Default false. The CLI turns this on;
+   * library callers keep the historical counts until they opt in.
+   */
+  strictOracles?: boolean;
   /** Hard cap on a flow's wall-clock time. Default 180s. */
   flowTimeoutMs?: number;
   /** Launch the browser headless. Default true. */
   headless?: boolean;
+  /**
+   * Record a WebM per flow. Default true. Replay and tests can turn this off;
+   * the action trace does not depend on it.
+   */
+  recordVideo?: boolean;
   /** Hook for live progress events (legacy callback API). */
   onEvent?: (event: RunnerEvent) => void;
   /** Optional live event bus. Receives runner lifecycle events. */
@@ -130,15 +150,30 @@ export async function runPlan(
       });
 
       const flowStarted = Date.now();
+      const abort = new AbortController();
+      // Firing the guard aborts the context immediately; cancel() after the
+      // race clears the timer so a finished flow cannot reject later.
+      const timeout = createFlowTimeout(flow.name, flowTimeout, () => abort.abort());
+      const work = runFlow(
+        browser, flow, llm,
+        { ...opts, screenshotsDir, stepTimeoutMs: stepTimeout, events },
+        fi + 1, plan.flows.length,
+        abort.signal,
+      );
+      work.catch(() => {});
 
       let result: FlowResult;
       try {
-        result = await Promise.race([
-          runFlow(browser, flow, llm, { ...opts, screenshotsDir, stepTimeoutMs: stepTimeout, events }, fi + 1, plan.flows.length),
-          flowTimeoutGuard(flow, flowTimeout, flowStarted),
-        ]);
+        const winner = await Promise.race([work, timeout.promise]);
+        if (!winner || !('flowId' in winner)){
+          throw new Error(`flow "${flow.name}" exceeded ${flowTimeout}ms`);
+        }
+        result = winner;
       } catch (err) {
+        abort.abort();
         result = errorFlowResult(flow, err instanceof Error ? err.message : String(err), flowStarted);
+      } finally {
+        timeout.cancel();
       }
 
       flows.push(result);
@@ -188,6 +223,7 @@ async function runFlow(
   opts: RunFlowOpts,
   flowIndex: number,
   flowsTotal: number,
+  signal?: AbortSignal,
 ): Promise<FlowResult> {
 
   const events = opts.events;
@@ -204,79 +240,100 @@ async function runFlow(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) AppleWebKit/537.36 '
       + '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 monkeytest.ai',
     viewport: { width: 1280, height: 800 },
-    recordVideo: {
-      dir: opts.screenshotsDir,
-      size: { width: 1280, height: 800 },
-    },
+    ...(opts.recordVideo === false ? {} : {
+      recordVideo: {
+        dir: opts.screenshotsDir,
+        size: { width: 1280, height: 800 },
+      },
+    }),
   });
+
+  const onAbort = () => { void context.close().catch(() => {}); };
+  if (signal?.aborted){
+    await context.close().catch(() => {});
+    throw new Error('flow aborted');
+  }
+  signal?.addEventListener('abort', onAbort, { once: true });
 
   const page = await context.newPage();
 
-  // Per-flow buffers. We attribute console errors / network failures to the
-  // step that was running when they fired — see `currentStepIndex`.
-  let currentStepIndex = 0;
-  const consoleByStep: Map<number, ConsoleErrorEvidence[]> = new Map();
-  const networkByStep: Map<number, NetworkFailureEvidence[]> = new Map();
-
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error' && msg.type() !== 'warning') return;
-    const arr = consoleByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      message: msg.text().slice(0, 500),
-      level: msg.type() === 'error' ? 'error' : 'warning',
-      url: msg.location()?.url,
-      lineNumber: msg.location()?.lineNumber,
-    });
-    consoleByStep.set(currentStepIndex, arr);
-  });
-
-  page.on('requestfailed', (req: Request) => {
-    // Ignore the noise — websockets and dev-server pings break constantly
-    // and would drown out the real signal.
-    if (req.url().startsWith('ws:') || req.url().startsWith('wss:')) return;
-    const arr = networkByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      url: req.url(),
-      method: req.method(),
-      failureText: req.failure()?.errorText,
-    });
-    networkByStep.set(currentStepIndex, arr);
-  });
-
-  page.on('response', (res) => {
-    const status = res.status();
-    if (status < 500) return;
-    const arr = networkByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      url: res.url(),
-      method: res.request().method(),
-      status,
-    });
-    networkByStep.set(currentStepIndex, arr);
-  });
+  // Per-flow buffers. Listeners attribute console, page errors, and network
+  // failures to whichever step index is current.
+  const evidence = attachStepEvidence(page);
 
   const steps: StepResult[] = [];
+  const traceSteps: TraceStep[] = [];
   let flowFailed = false;
   let firstFailureReason: string | undefined;
 
+  const finish = (videoPath?: string) => finaliseFlow(
+    flow, steps, flowFailed, firstFailureReason, flowStarted, videoPath, traceSteps,
+  );
+
   // 1. Initial navigation. Implicit "step 0" — if this fails, the whole
-  //    flow is blocked before we even attempt the planned steps.
+  //    flow is blocked before we even attempt the planned steps. The goto is
+  //    part of the trace either way so replay can repeat it without the LLM.
+  const navStarted = Date.now();
+  const navStartedAt = new Date().toISOString();
+  let navOracleError: string | undefined;
   try {
+    evidence.stepIndex = 0;
     await page.goto(flow.startUrl, { waitUntil: 'domcontentloaded', timeout: opts.stepTimeoutMs });
     await settleSPA(page);
+    const nav = opts.strictOracles
+      ? await applyPassedOracles(page, evidence, 0, {
+        status: 'passed',
+        observation: `Navigated to ${flow.startUrl}.`,
+      })
+      : { status: 'passed' as const, observation: `Navigated to ${flow.startUrl}.` };
+    if (nav.status === 'failed') {
+      navOracleError = nav.error || nav.observation;
+      throw new Error(navOracleError);
+    }
+    traceSteps.push(serializeTraceStep({
+      index: 0,
+      action: `Open ${flow.startUrl}`,
+      tool: 'goto',
+      locator: { strategy: 'css', target: flow.startUrl },
+      urlAfter: page.url(),
+      startedAt: navStartedAt,
+      durationMs: Date.now() - navStarted,
+      status: 'passed',
+      observation: `Navigated to ${flow.startUrl}.`,
+      resolution: 'recorded',
+    }));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = navOracleError || (err instanceof Error ? err.message : String(err));
     const blockingStep: StepResult = {
       index: 0,
       action: `Open ${flow.startUrl}`,
       status: 'failed',
-      observation: `Could not load the starting page (${msg}).`,
+      observation: navOracleError
+        ? `Opening ${flow.startUrl} failed: ${msg}.`
+        : `Could not load the starting page (${msg}).`,
       tool: 'goto',
       target: flow.startUrl,
       error: msg,
       screenshotPath: await safeShot(page, opts.screenshotsDir, flow.id, 0, 'failed'),
+      consoleErrors: evidence.consoleByStep.get(0),
+      networkFailures: evidence.networkByStep.get(0),
     };
     steps.push(blockingStep);
+    traceSteps.push(serializeTraceStep({
+      index: 0,
+      action: blockingStep.action,
+      tool: 'goto',
+      locator: { strategy: 'css', target: flow.startUrl },
+      startedAt: navStartedAt,
+      durationMs: Date.now() - navStarted,
+      status: 'failed',
+      observation: blockingStep.observation,
+      error: msg,
+      screenshotPath: blockingStep.screenshotPath,
+      consoleErrors: blockingStep.consoleErrors,
+      networkFailures: blockingStep.networkFailures,
+      resolution: 'recorded',
+    }));
     flowFailed = true;
     firstFailureReason = msg;
     if (blockingStep.screenshotPath){
@@ -297,14 +354,15 @@ async function runFlow(
       blocked.screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, i + 1, 'blocked');
       steps.push(blocked);
     }
+    signal?.removeEventListener('abort', onAbort);
     await context.close().catch(() => {});
-    return finaliseFlow(flow, steps, flowFailed, firstFailureReason, flowStarted);
+    return finish();
   }
 
   // 2. Walk the planned steps.
   for (let i = 0; i < flow.steps.length; i++){
     const stepIndex = i + 1;
-    currentStepIndex = stepIndex;
+    evidence.stepIndex = stepIndex;
     const step = flow.steps[i];
 
     opts.onEvent?.({ type: 'step.start', flowId: flow.id, index: stepIndex, step });
@@ -336,7 +394,14 @@ async function runFlow(
       continue;
     }
 
+    if (signal?.aborted){
+      signal.removeEventListener('abort', onAbort);
+      throw new Error('flow aborted');
+    }
+
     const stepStart = Date.now();
+    const startedAt = new Date().toISOString();
+    const urlBefore = page.url();
     let resolved: ResolvedAction;
     try {
       const skeleton = await skeletonForLLM(page);
@@ -355,6 +420,20 @@ async function runFlow(
         screenshotPath: await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, 'skipped'),
       };
       steps.push(result);
+      traceSteps.push(serializeTraceStep({
+        index: stepIndex,
+        action: step.action,
+        expectation: step.expectation,
+        tool: 'noop',
+        urlBefore,
+        urlAfter: safePageUrl(page),
+        startedAt,
+        durationMs: result.durationMs,
+        status: 'skipped',
+        observation: result.observation,
+        screenshotPath: result.screenshotPath,
+        resolution: 'recorded',
+      }));
       opts.onEvent?.({ type: 'step.complete', flowId: flow.id, index: stepIndex, result });
       events.emit({
         phase: 'runner', type: 'run.step_complete',
@@ -370,8 +449,15 @@ async function runFlow(
       continue;
     }
 
-    const exec = await executeAction(page, resolved, opts.stepTimeoutMs);
+    const locator = await captureLocator(page, resolved);
+    const executed = await executeAction(page, resolved, opts.stepTimeoutMs, {
+      strictOracles: opts.strictOracles,
+    });
+    const exec = opts.strictOracles
+      ? await applyPassedOracles(page, evidence, stepIndex, executed)
+      : executed;
     const screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, exec.status);
+    const durationMs = Date.now() - stepStart;
 
     const result: StepResult = {
       index: stepIndex,
@@ -381,13 +467,34 @@ async function runFlow(
       observation: exec.observation,
       tool: resolved.tool,
       target: resolved.target,
-      durationMs: Date.now() - stepStart,
+      locator,
+      resolution: 'recorded',
+      durationMs,
       screenshotPath,
-      consoleErrors: consoleByStep.get(stepIndex),
-      networkFailures: networkByStep.get(stepIndex),
+      consoleErrors: evidence.consoleByStep.get(stepIndex),
+      networkFailures: evidence.networkByStep.get(stepIndex),
       ...(exec.error ? { error: exec.error } : {}),
     };
     steps.push(result);
+    traceSteps.push(serializeTraceStep({
+      index: stepIndex,
+      action: step.action,
+      expectation: step.expectation,
+      tool: resolved.tool,
+      locator,
+      value: resolved.value,
+      urlBefore,
+      urlAfter: safePageUrl(page),
+      startedAt,
+      durationMs,
+      status: exec.status,
+      observation: exec.observation,
+      error: exec.error,
+      screenshotPath,
+      consoleErrors: result.consoleErrors,
+      networkFailures: result.networkFailures,
+      resolution: 'recorded',
+    }));
     opts.onEvent?.({ type: 'step.complete', flowId: flow.id, index: stepIndex, result });
     events.emit({
       phase: 'runner', type: 'run.step_complete',
@@ -416,12 +523,13 @@ async function runFlow(
     videoPathRaw = await page.video()?.path() ?? null;
   } catch { /* page already closed */ }
 
+  signal?.removeEventListener('abort', onAbort);
   await context.close().catch(() => {});
 
   // Rename UUID video file → predictable flow-level basename so we can
   // construct a serve URL without a manifest.
   let videoPath: string | undefined;
-  if (videoPathRaw && existsSync(videoPathRaw)){
+  if (opts.recordVideo !== false && videoPathRaw && existsSync(videoPathRaw)){
     const dest = join(opts.screenshotsDir, `flow-${slug(flow.id)}.webm`);
     try {
       renameSync(videoPathRaw, dest);
@@ -429,7 +537,7 @@ async function runFlow(
     } catch {
       videoPath = videoPathRaw;   // fallback: keep the UUID name
     }
-  } else {
+  } else if (opts.recordVideo !== false) {
     // page.video().path() sometimes returns the path before the file exists;
     // scan the dir for any .webm that's newer than the flow start time.
     try {
@@ -446,298 +554,12 @@ async function runFlow(
     } catch { /* ignore */ }
   }
 
-  return finaliseFlow(flow, steps, flowFailed, firstFailureReason, flowStarted, videoPath);
-
-}
-
-/* ── LLM: translate natural-language step → concrete action ──────────── */
-
-const ActionSchema = z.object({
-  tool: z.enum(['click', 'fill', 'goto', 'wait', 'assert_text', 'press', 'noop']),
-  /** CSS selector, URL (for goto), or text snippet (for assert_text). */
-  target: z.string().optional(),
-  /** Value to type (for fill) or key chord (for press). */
-  value: z.string().optional(),
-  /** Locator strategy hint. Used to fall back to role/text locators when
-   *  CSS selectors are flaky. */
-  locator: z.enum(['css', 'role', 'text', 'placeholder', 'label']).optional(),
-  /** One-sentence explanation, useful for the report timeline. */
-  rationale: z.string().optional(),
-});
-
-type ResolvedAction = z.infer<typeof ActionSchema>;
-
-async function resolveAction(
-  llm: LLM,
-  flow: TestFlow,
-  step: TestStep,
-  skeleton: PageSkeletonForLLM,
-): Promise<ResolvedAction> {
-
-  const prompt = `
-You are translating a single natural-language test step into a concrete browser
-action that a Playwright agent can execute.
-
-You MUST reply with a JSON object, no prose, no markdown.
-
-Schema:
-  tool:     "click" | "fill" | "goto" | "wait" | "assert_text" | "press" | "noop"
-  target:   string                — CSS selector, role-like description, or URL/text (see examples)
-  value:    string (optional)     — value to type for "fill", or key for "press" (e.g. "Enter")
-  locator:  "css" | "role" | "text" | "placeholder" | "label" (optional, default "css")
-  rationale: string (optional)    — one short sentence explaining your choice
-
-Tool semantics:
-  click         — click the element identified by target+locator
-  fill          — type \`value\` into the element identified by target+locator
-  goto          — navigate to URL in target
-  wait          — wait for selector in target to appear (use sparingly)
-  assert_text   — observe whether the page contains the text in target. Missing text is not a bug by itself.
-  press         — press a key (target = optional selector, value = key like "Enter")
-  noop          — only use this when the step is impossible (e.g. asks for real signup)
-
-Locator guidance:
-  - Prefer "role" or "text" or "label" or "placeholder" when CSS selectors aren't obvious.
-  - For role: target like "button:Sign in" or "link:Pricing" or "textbox:Email".
-  - For text: target is the visible text.
-  - For label: target is the form label text.
-  - For placeholder: target is the input placeholder text.
-  - If the control is not in the skeleton, use "noop" rather than guessing a selector.
-  - Never invent selectors, search boxes, or exact page titles. Use only elements visible in the skeleton.
-  - Do not turn page-title expectations into bugs; exploratory users observe what loaded.
-  - If the step asks to log in, enter OTP, or create an account, use "noop".
-
-Context:
-  Flow:           ${flow.name} (${flow.kind})
-  Flow goal:      ${flow.expectation}
-  Step:           ${step.action}
-  Expectation:    ${step.expectation || '(none stated)'}
-  Current URL:    ${skeleton.url}
-  Page title:     ${skeleton.title}
-
-Visible page skeleton (top of body):
-  Headings: ${skeleton.headings.slice(0, 8).join(' | ') || '(none)'}
-  Buttons:  ${skeleton.buttons.slice(0, 12).join(' | ') || '(none)'}
-  Links:    ${skeleton.links.slice(0, 12).map(l => l.text).join(' | ') || '(none)'}
-  Inputs:   ${skeleton.inputs.slice(0, 12).map(i => `${i.label || i.placeholder || i.name || i.type}`).join(' | ') || '(none)'}
-
-Reply with JSON only.`;
-
-  return llm.generateJSON({
-    label: 'runner.resolveAction',
-    prompt,
-    schema: ActionSchema,
-  });
-
-}
-
-/* ── Action execution ─────────────────────────────────────────────────── */
-
-interface ActionOutcome {
-  status: StepStatus;
-  observation: string;
-  error?: string;
-}
-
-async function executeAction(page: Page, action: ResolvedAction, timeoutMs: number): Promise<ActionOutcome> {
-
-  try {
-
-    switch (action.tool){
-
-      case 'click': {
-        const locator = buildLocator(page, action);
-        await locator.first().click({ timeout: timeoutMs });
-        await settleSPA(page).catch(() => {});
-        return { status: 'passed', observation: `Clicked ${describeTarget(action)}.` };
-      }
-
-      case 'fill': {
-        const locator = buildLocator(page, action);
-        await locator.first().fill(action.value ?? '', { timeout: timeoutMs });
-        return { status: 'passed', observation: `Typed "${truncate(action.value ?? '', 40)}" into ${describeTarget(action)}.` };
-      }
-
-      case 'goto': {
-        const url = action.target || '';
-        if (!/^https?:\/\//.test(url)){
-          return { status: 'failed', observation: `Refused to navigate to non-http URL "${url}".`, error: 'invalid_url' };
-        }
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-        await settleSPA(page).catch(() => {});
-        return { status: 'passed', observation: `Navigated to ${url}.` };
-      }
-
-      case 'wait': {
-        const locator = buildLocator(page, action);
-        await locator.first().waitFor({ state: 'visible', timeout: timeoutMs });
-        return { status: 'passed', observation: `Confirmed ${describeTarget(action)} is visible.` };
-      }
-
-      case 'assert_text': {
-        const text = action.target || '';
-        if (!text) return { status: 'skipped', observation: 'No text supplied for observation.' };
-        const found = await page.locator('body').filter({ hasText: text }).first().count();
-        if (found > 0){
-          return { status: 'passed', observation: `Observed "${truncate(text, 60)}" on the page.` };
-        }
-        return {
-          status: 'skipped',
-          observation: `Did not observe "${truncate(text, 60)}" on the page. Treated as an exploratory observation, not a product bug.`,
-        };
-      }
-
-      case 'press': {
-        const key = action.value || 'Enter';
-        if (action.target){
-          const locator = buildLocator(page, action);
-          await locator.first().press(key, { timeout: timeoutMs });
-        } else {
-          await page.keyboard.press(key);
-        }
-        await settleSPA(page).catch(() => {});
-        return { status: 'passed', observation: `Pressed ${key}${action.target ? ` on ${describeTarget(action)}` : ''}.` };
-      }
-
-      case 'noop': {
-        return {
-          status: 'skipped',
-          observation: action.rationale || 'Step intentionally skipped — not safe to automate.',
-        };
-      }
-
-    }
-
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (isSoftAutomationMiss(msg)){
-      return {
-        status: 'skipped',
-        observation: `${capitalise(action.tool)} on ${describeTarget(action)} could not be completed by the agent (${truncate(msg, 140)}). Treated as inconclusive rather than a product bug.`,
-      };
-    }
-    return {
-      status: 'failed',
-      observation: `${capitalise(action.tool)} on ${describeTarget(action)} failed: ${truncate(msg, 160)}`,
-      error: msg,
-    };
-  }
-
-  return { status: 'skipped', observation: 'Unknown tool — skipped.' };
-
-}
-
-function isSoftAutomationMiss(msg: string): boolean {
-  const lower = msg.toLowerCase();
-  return lower.includes('timeout') && (
-    lower.includes('waiting for locator')
-    || lower.includes('locator.fill')
-    || lower.includes('locator.click')
-    || lower.includes('locator.press')
-    || lower.includes('locator.waitfor')
-  );
-}
-
-/* ── Locator strategies ───────────────────────────────────────────────── */
-
-function buildLocator(page: Page, action: ResolvedAction){
-  const target = action.target || '';
-  const strategy = action.locator || 'css';
-
-  switch (strategy){
-    case 'role': {
-      // target is "role:label" e.g. "button:Sign in"
-      const m = target.match(/^([a-z]+)\s*:\s*(.+)$/i);
-      if (m){
-        return page.getByRole(m[1] as any, { name: new RegExp(escapeRegex(m[2]), 'i') });
-      }
-      return page.getByRole(target as any);
-    }
-    case 'text':
-      return page.getByText(target, { exact: false });
-    case 'placeholder':
-      return page.getByPlaceholder(target);
-    case 'label':
-      return page.getByLabel(target);
-    case 'css':
-    default:
-      return page.locator(target);
-  }
-
-}
-
-/* ── Page skeleton (LLM context for the runner) ──────────────────────── */
-
-interface PageSkeletonForLLM {
-  url: string;
-  title: string;
-  headings: string[];
-  buttons: string[];
-  links: { text: string; href: string }[];
-  inputs: { label?: string; placeholder?: string; name?: string; type?: string }[];
-}
-
-async function skeletonForLLM(page: Page): Promise<PageSkeletonForLLM> {
-
-  const url = page.url();
-  const title = await page.title().catch(() => '');
-
-  const collected = await page.evaluate(() => {
-
-    function txt(el: Element): string {
-      return (el.textContent || '').trim().replace(/\s+/g, ' ');
-    }
-
-    const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
-      .map(txt).filter(Boolean).slice(0, 12);
-
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"]'))
-      .map(b => txt(b) || (b as HTMLInputElement).value || '')
-      .filter(Boolean).slice(0, 25);
-
-    const links = Array.from(document.querySelectorAll('a[href]'))
-      .slice(0, 25)
-      .map(a => ({
-        text: txt(a),
-        href: (a as HTMLAnchorElement).href,
-      }))
-      .filter(l => l.text);
-
-    const inputs = Array.from(document.querySelectorAll('input, textarea, select'))
-      .slice(0, 25)
-      .map(el => {
-        const i = el as HTMLInputElement;
-        const labelEl = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`) : null;
-        return {
-          label: labelEl ? txt(labelEl) : undefined,
-          placeholder: i.placeholder || undefined,
-          name: i.name || undefined,
-          type: i.type || i.tagName.toLowerCase(),
-        };
-      });
-
-    return { headings, buttons, links, inputs };
-
-  });
-
-  return {
-    url,
-    title,
-    ...collected,
-  };
+  return finish(videoPath);
 
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
-async function settleSPA(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle', { timeout: 4_000 }).catch(() => {});
-  await page.waitForFunction(
-    () => (document.body?.innerText || '').replace(/\s+/g, '').length > 30,
-    undefined,
-    { timeout: 6_000 },
-  ).catch(() => {});
-}
 
 async function safeShot(
   page: Page,
@@ -798,22 +620,27 @@ function errorFlowResult(flow: TestFlow, msg: string, started: number): FlowResu
   };
 }
 
-function flowTimeoutGuard(flow: TestFlow, timeoutMs: number, started: number): Promise<FlowResult> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`flow "${flow.name}" exceeded ${timeoutMs}ms`)), timeoutMs);
-  });
-}
-
 function finaliseFlow(
   flow: TestFlow,
   steps: StepResult[],
   failed: boolean,
   failureReason: string | undefined,
   started: number,
-  videoPath?: string,
+  videoPath: string | undefined,
+  traceSteps: TraceStep[],
 ): FlowResult {
 
   const status: FlowResult['status'] = failed ? 'failed' : 'passed';
+  const trace = serializeTrace({
+    version: 1,
+    flowId: flow.id,
+    name: flow.name,
+    description: flow.description,
+    kind: flow.kind,
+    startUrl: flow.startUrl,
+    expectation: flow.expectation,
+    steps: traceSteps,
+  });
 
   return {
     flowId: flow.id,
@@ -827,6 +654,7 @@ function finaliseFlow(
     durationMs: Date.now() - started,
     bugIds: [],                                  // populated by triager
     ...(videoPath ? { videoPath } : {}),
+    trace,
   };
 
 }
@@ -865,22 +693,13 @@ function aggregateStats(flows: FlowResult[]): RunResult['stats'] {
   };
 }
 
-function describeTarget(action: ResolvedAction): string {
-  if (!action.target) return '(no target)';
-  const prefix = action.locator && action.locator !== 'css' ? `${action.locator}:` : '';
-  return `${prefix}${truncate(action.target, 60)}`;
-}
-
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-function capitalise(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function safePageUrl(page: Page): string | undefined {
+  try { return page.url(); }
+  catch { return undefined; }
 }
 
 function slug(s: string): string {

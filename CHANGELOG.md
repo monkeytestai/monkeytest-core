@@ -5,6 +5,22 @@ All notable changes to **MonkeyTest Core** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Action traces on each flow and on each bug (locator, value, URL, timing, evidence).
+- `fingerprintV2` and `fingerprintParts` (version 2) from failure category, URL template, element role + name, and a normalised error signal. `fingerprint` stays the legacy v1 hash so stored bugs still match. Diff and verify use v2 only when both sides have it.
+- `monkeytest rerun` replays the stored trace with no LLM calls. `--heal` re-resolves a step whose locator missed and marks that step `healed`.
+- `monkeytest verify` replays each bug trace and reports `fixed`, `still_broken`, `flaky`, `healed`, or `blocked`. Exit `1` when any bug is `still_broken` or `flaky`.
+- Vitest coverage for fingerprints, trace serialisation, verdicts, and `diffRuns`, plus an integration test. CI runs `npm test`.
+- Optional strict oracles fail a step when the page throws, a document returns HTTP 404, an action returns HTTP 5xx, or the clicked control is disabled. They default off on `new Monkey(...)` and on for the CLI (`strictOracles: true`). Replay uses the same switch.
+- Reusable buggy/fixed demo app under `test/fixtures/demo-app`. `npm test` covers it with a stub LLM. `.github/workflows/e2e-live.yml` runs the same app with a real model (manual, nightly, and pushes to `main`).
+
+### Fixed
+
+- The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
+
 ## [0.4.0] — 2026-05
 
 The bug-finding loop release. The CLI is now a real product surface with

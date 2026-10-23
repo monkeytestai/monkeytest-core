@@ -22,5 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Verify the build emitted JavaScript
+        run: test -f dist/cli.js && test -f dist/index.js
       - name: Verify package can be packed
         run: npm pack --dry-run

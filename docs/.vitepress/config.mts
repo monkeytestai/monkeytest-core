@@ -31,7 +31,8 @@ export default defineConfig({
     logo: '/logo.svg',
 
     nav: [
-      { text: 'Guide', link: '/guide/introduction', activeMatch: '/guide/' },
+      { text: 'Guide', link: '/guide/quick-start', activeMatch: '/guide/(?!why-monkeytest)' },
+      { text: 'Why monkeytest', link: '/guide/why-monkeytest', activeMatch: '/guide/why-monkeytest' },
       { text: 'LLMs', link: '/guide/llm-providers', activeMatch: '/guide/llm-' },
       { text: 'Reference', link: '/reference/overview', activeMatch: '/reference/' },
       { text: 'GitHub', link: 'https://github.com/monkeytestai/monkeytest-core' },
@@ -43,9 +44,10 @@ export default defineConfig({
         {
           text: 'Start here',
           items: [
-            { text: 'Introduction', link: '/guide/introduction' },
-            { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick start', link: '/guide/quick-start' },
+            { text: 'Why monkeytest', link: '/guide/why-monkeytest' },
+            { text: 'Installation', link: '/guide/installation' },
+            { text: 'Introduction', link: '/guide/introduction' },
             { text: 'The bug-finding loop', link: '/guide/the-bug-finding-loop' },
             { text: 'How it works', link: '/guide/architecture' },
           ],

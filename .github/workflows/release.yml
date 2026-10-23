@@ -62,6 +62,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify the build emitted JavaScript
+        run: test -f dist/cli.js && test -f dist/index.js
+
       - name: Pack (sanity check)
         run: npm pack --dry-run
 

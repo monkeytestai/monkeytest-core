@@ -1,5 +1,10 @@
 # VitePress docs → docs.monkeytest.ai
-# Connect this repo in Netlify; settings below are applied automatically.
+#
+# The live site is Vercel, not Netlify. Vercel ignores this file.
+# Clean URLs in production come from /vercel.json (`cleanUrls: true`).
+# Keep this file so a Netlify deploy of the same repo still serves
+# extensionless paths. VitePress emits page.html, and Netlify's default
+# pretty-URL handling is not always on.
 
 [build]
   command = "npm ci && npm run docs:build"
@@ -8,88 +13,12 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# VitePress cleanUrls emit .html files. Pretty paths were 404ing for crawlers.
 [[redirects]]
-  from = "/guide/introduction"
-  to = "/guide/introduction.html"
+  from = "/guide/*"
+  to = "/guide/:splat.html"
   status = 200
+
 [[redirects]]
-  from = "/guide/installation"
-  to = "/guide/installation.html"
-  status = 200
-[[redirects]]
-  from = "/guide/quick-start"
-  to = "/guide/quick-start.html"
-  status = 200
-[[redirects]]
-  from = "/guide/the-bug-finding-loop"
-  to = "/guide/the-bug-finding-loop.html"
-  status = 200
-[[redirects]]
-  from = "/guide/architecture"
-  to = "/guide/architecture.html"
-  status = 200
-[[redirects]]
-  from = "/guide/configuration"
-  to = "/guide/configuration.html"
-  status = 200
-[[redirects]]
-  from = "/guide/llm-providers"
-  to = "/guide/llm-providers.html"
-  status = 200
-[[redirects]]
-  from = "/guide/prompt-caching"
-  to = "/guide/prompt-caching.html"
-  status = 200
-[[redirects]]
-  from = "/guide/triager"
-  to = "/guide/triager.html"
-  status = 200
-[[redirects]]
-  from = "/guide/cost-and-depth"
-  to = "/guide/cost-and-depth.html"
-  status = 200
-[[redirects]]
-  from = "/guide/live-events"
-  to = "/guide/live-events.html"
-  status = 200
-[[redirects]]
-  from = "/guide/recipes"
-  to = "/guide/recipes.html"
-  status = 200
-[[redirects]]
-  from = "/guide/ci"
-  to = "/guide/ci.html"
-  status = 200
-[[redirects]]
-  from = "/guide/troubleshooting"
-  to = "/guide/troubleshooting.html"
-  status = 200
-[[redirects]]
-  from = "/guide/license"
-  to = "/guide/license.html"
-  status = 200
-[[redirects]]
-  from = "/guide/license-and-saas"
-  to = "/guide/license-and-saas.html"
-  status = 200
-[[redirects]]
-  from = "/guide/publishing-docs"
-  to = "/guide/publishing-docs.html"
-  status = 200
-[[redirects]]
-  from = "/reference/overview"
-  to = "/reference/overview.html"
-  status = 200
-[[redirects]]
-  from = "/reference/monkey"
-  to = "/reference/monkey.html"
-  status = 200
-[[redirects]]
-  from = "/reference/events"
-  to = "/reference/events.html"
-  status = 200
-[[redirects]]
-  from = "/reference/cli"
-  to = "/reference/cli.html"
+  from = "/reference/*"
+  to = "/reference/:splat.html"
   status = 200

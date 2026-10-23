@@ -1,23 +1,10 @@
-# Cloudflare Pages / Netlify: VitePress cleanUrls emit .html files.
-# Crawlers requesting the pretty path were getting 404s.
-/guide/introduction          /guide/introduction.html          200
-/guide/installation          /guide/installation.html          200
-/guide/quick-start           /guide/quick-start.html           200
-/guide/the-bug-finding-loop  /guide/the-bug-finding-loop.html  200
-/guide/architecture          /guide/architecture.html          200
-/guide/configuration         /guide/configuration.html         200
-/guide/llm-providers         /guide/llm-providers.html         200
-/guide/prompt-caching        /guide/prompt-caching.html        200
-/guide/triager               /guide/triager.html               200
-/guide/cost-and-depth        /guide/cost-and-depth.html        200
-/guide/live-events           /guide/live-events.html           200
-/guide/recipes               /guide/recipes.html               200
-/guide/ci                    /guide/ci.html                    200
-/guide/troubleshooting       /guide/troubleshooting.html       200
-/guide/license               /guide/license.html               200
-/guide/license-and-saas      /guide/license-and-saas.html      200
-/guide/publishing-docs       /guide/publishing-docs.html       200
-/reference/overview          /reference/overview.html          200
-/reference/monkey            /reference/monkey.html            200
-/reference/events            /reference/events.html            200
-/reference/cli               /reference/cli.html               200
+# Production docs.monkeytest.ai is hosted on Vercel, which does not read
+# this file (it is served as a static asset). Vercel clean URLs are set in
+# /vercel.json. The rules below matter only if this same VitePress output is
+# deployed to Cloudflare Pages or Netlify.
+#
+# Status 200 is a rewrite: /guide/quick-start serves guide/quick-start.html.
+# Existing .html files are served directly, so these rules do not turn
+# quick-start.html into quick-start.html.html.
+/guide/*       /guide/:splat.html       200
+/reference/*   /reference/:splat.html   200

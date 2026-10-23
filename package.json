@@ -55,7 +55,7 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -f .tsbuildinfo && tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "explore": "tsx src/cli.ts explore",
     "clean": "rm -rf dist .tsbuildinfo",

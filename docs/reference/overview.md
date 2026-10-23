@@ -1,6 +1,8 @@
 # Reference: Overview
 
-`@mtai/monkeytest-core` is a single ESM package with a small, stable surface. All public exports come from the package root:
+`@mtai/monkeytest-core` is a single ESM package with a small, stable surface. The package name is not on the npm registry yet (404 as of 23 Oct 2026). Build from source with the [quick start](/guide/quick-start), then import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface once the package is installed.
+
+All public exports come from the package root:
 
 ```ts
 import {

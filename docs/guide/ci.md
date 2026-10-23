@@ -10,6 +10,8 @@ MonkeyTest Core is small enough to run on every PR. The pattern is:
 
 This page shows the canonical setup for **GitHub Actions** + **Vercel-style preview URLs**, but the pattern works anywhere.
 
+The workflow below runs `npm ci` in *your* app and imports `@mtai/monkeytest-core`. That package is not on npm yet. Until a release is published, the job cannot install it from the registry. Track this repository as a git dependency, or vendor a built `dist/`, and keep the rest of the recipe. Screenshot paths in the sample are `.monkeytest/shots/`, which is where the engine writes them.
+
 ## Minimal `runner.ts`
 
 Add to your repo:

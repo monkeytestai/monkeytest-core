@@ -1,12 +1,15 @@
 # CLI reference
 
-The `monkeytest` binary ships with the `@mtai/monkeytest-core` package.
+The `monkeytest` binary is `dist/cli.js` in this repository. Until `@mtai/monkeytest-core` is on npm, run it from a clone:
 
 ```bash
-npm install -g @mtai/monkeytest-core
-# or
-npx @mtai/monkeytest-core <command> ...
+git clone https://github.com/monkeytestai/monkeytest-core.git
+cd monkeytest-core
+npm install && npm run build
+node dist/cli.js --help
 ```
+
+After the package is published, `npm install -g @mtai/monkeytest-core` and `npx monkeytest` use the same binary. The registry returned 404 for that name as of 23 Oct 2026.
 
 All commands write to `./.monkeytest/` by default (override with `--dir`).
 
@@ -14,14 +17,16 @@ All commands write to `./.monkeytest/` by default (override with `--dir`).
 
 ### `monkeytest init`
 
-Scaffold a `.monkeytest/` directory with `config.json`, `runs/`, `shots/`, and a sensible `.gitignore`. Idempotent — won't overwrite an existing config.
+Scaffold a `.monkeytest/` directory with `config.json`, `runs/`, `shots/`, and a `.gitignore` that ignores `shots/` and `runs/`. Idempotent — an existing `config.json` is left in place.
 
 ```bash
-monkeytest init
+node dist/cli.js init
 # ✓ Initialised .monkeytest/
 #   Tracked:    config.json, plan.json (after first run)
 #   Ignored:    shots/, runs/
 ```
+
+`config.json` is a starter file. The CLI does not read it on `explore`, `run`, `rerun`, `diff`, or `report`. Provider, model, quality, and limits come from flags and environment variables. The file's `$schema` field points at `https://docs.monkeytest.ai/config-schema-v1.json`, and that URL 404s — there is no published JSON Schema. Editors may warn. Delete the `$schema` line, or delete the file, if the warning gets in the way. Nothing in the engine fetches it.
 
 ### `monkeytest explore <url>`
 
@@ -141,7 +146,7 @@ Print the engine version.
 
 ```
 .monkeytest/
-├── config.json                     ← hand-tuned config (tracked)
+├── config.json                     ← written by `init`, not read by the CLI
 ├── plan.json                       ← latest plan (tracked, version 1)
 ├── sitemap.json                    ← latest crawl summary
 ├── runs/

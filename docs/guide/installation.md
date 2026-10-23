@@ -1,12 +1,33 @@
 # Installation
 
+The commands that work today are a clone and a local build. The npm package is reserved and not published.
+
 ## Requirements
 
-- **Node.js 20+** (the engine uses native ESM, `node:` builtins, and `AbortController`)
-- **Playwright Chromium** (one-time download, ~150 MB)
-- An **LLM API key** for at least one [supported provider](/guide/llm-providers)
+- **Node.js 20+** (`node -v`). The engine is native ESM and uses `node:` builtins.
+- **Playwright Chromium**, downloaded once with `npx playwright install chromium` (about 170 MB for current builds, plus a headless shell).
+- An **LLM API key** only when you want a real crawl-plan-run. The smoke script in the [quick start](/guide/quick-start) uses a stub LLM and needs no key.
 
-## Install
+## From source (this is the path that works)
+
+```bash
+git clone https://github.com/monkeytestai/monkeytest-core.git
+cd monkeytest-core
+npm install
+npm run build
+npx playwright install chromium
+node scripts/smoke.mjs
+```
+
+`npm run build` writes `dist/`, including `dist/cli.js`. Run the CLI with `node dist/cli.js`. Step-by-step output, the Gemini command, and Ollama are on the [quick start](/guide/quick-start).
+
+`npm run build` removes `.tsbuildinfo` before `tsc`, and TypeScript incremental mode is off. A fresh build emits `.js` and `.d.ts`. If you are on an older commit and `dist/` contains only declaration files, run `npm run clean && npm run build`.
+
+## npm (not available yet)
+
+The package name is `@mtai/monkeytest-core`. As of 23 Oct 2026, `npm view @mtai/monkeytest-core` returns **E404**. The same is true for pnpm, yarn, and bun: the registry has nothing to install.
+
+When it is published, this is the install:
 
 ::: code-group
 
@@ -32,44 +53,30 @@ bunx playwright install chromium
 
 :::
 
-The package ships as ESM with TypeScript declarations and a single binary (`monkeytest`). It's published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) so consumers can verify it was built by the project's official CI workflow.
+Publishing runs from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag. The workflow needs the `NPM_TOKEN` Actions secret (an npm automation token with publish access to `@mtai/*`). `publishConfig.access` is already `public`. Until that secret is set and a tag is pushed, use the clone above.
 
-## From source
+The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary. The release workflow publishes with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
 
-```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
-npm install
-npx playwright install chromium
-npm run build
-```
+## Set up a provider when you want a real run
 
-This produces a `dist/` folder you can `node dist/cli.js …` against, or `npm link` into another project.
+Auto-detect walks this list and uses the first one that is set:
 
-## Set up at least one LLM key
-
-Pick whichever you already have. The engine auto-detects the first one set:
-
-| Variable | Provider | Get a key |
-| -------- | -------- | --------- |
+| Variable | Provider | Key |
+| --- | --- | --- |
+| `GEMINI_API_KEY` or `GOOGLE_API_KEY` | Google Gemini | <https://aistudio.google.com/apikey> |
 | `OPENAI_API_KEY` | OpenAI | <https://platform.openai.com/api-keys> |
-| `GEMINI_API_KEY` | Google Gemini | <https://aistudio.google.com/apikey> |
 | `ANTHROPIC_API_KEY` | Anthropic Claude | <https://console.anthropic.com/settings/keys> |
 | `MISTRAL_API_KEY` | Mistral | <https://console.mistral.ai/api-keys/> |
 | `GROQ_API_KEY` | Groq | <https://console.groq.com/keys> |
-| `OPENAI_COMPATIBLE_BASE_URL` | Ollama / vLLM / OpenRouter / Together / LM Studio | n/a |
+| `OPENAI_COMPATIBLE_BASE_URL` | Ollama, vLLM, LM Studio, OpenRouter, … | The base URL. `OPENAI_COMPATIBLE_API_KEY` is optional for local servers |
 
-You can also pass `apiKey` directly in the `LLMConfig` object (handy when keys come from a vault). See [LLM providers](/guide/llm-providers) for full per-provider notes.
-
-## Verify
+A missing variable fails immediately (exit 2), before Chromium launches. A variable that is set to a rejected key fails later, after the crawl, with the provider's raw error (exit 3). Both cases are in [Troubleshooting](/guide/troubleshooting).
 
 ```bash
-export GEMINI_API_KEY=...   # or any other provider key
-npx monkeytest explore https://example.com
+export GEMINI_API_KEY="paste-your-key"
+node dist/cli.js run https://example.com --max 2 --flows 1
 ```
 
-You should see crawl output, a generated `.monkeytest/sitemap.json`, and screenshots under `.monkeytest/screenshots/`.
-
-If something looks off, head to [Troubleshooting](/guide/troubleshooting).
+Outputs land in `.monkeytest/plan.json`, `.monkeytest/runs/`, and `.monkeytest/shots/`. The copy-paste Ollama block is on the [quick start](/guide/quick-start#fully-local-with-ollama).
 
 Next: [Quick start →](/guide/quick-start)

@@ -4,7 +4,9 @@ The engine has three configuration surfaces:
 
 1. **`Monkey` constructor** — which LLMs to use for which phase.
 2. **`executeAndTriage` options** — explorer / planner / runner tuning.
-3. **Environment variables** — provider API keys (or pass `apiKey` inline).
+3. **Environment variables** — provider API keys (or pass `apiKey` inline). The CLI reads the same variables, plus its flags (`--provider`, `--model`, `--base-url`, `--quality`, `--max`, `--flows`).
+
+`monkeytest init` writes `.monkeytest/config.json`, including a `$schema` URL (`https://docs.monkeytest.ai/config-schema-v1.json`) that is not published. The CLI does not load `config.json`. Editing it has no effect on the next `run`. Use flags and environment variables. The file is safe to delete, or to keep as notes.
 
 ## `Monkey` constructor
 

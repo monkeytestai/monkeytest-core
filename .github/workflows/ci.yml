@@ -23,6 +23,8 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+      # Layer 1: unit tests and the stub-LLM demo fixture. No API keys.
+      # A real-model run lives in e2e-live.yml and does not run on pull_request.
       - run: npm test
       - run: npm run build
       - name: Verify package can be packed

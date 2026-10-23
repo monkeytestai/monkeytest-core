@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `monkeytest rerun` replays the stored trace with no LLM calls. `--heal` re-resolves a step whose locator missed and marks that step `healed`.
 - `monkeytest verify` replays each bug trace and reports `fixed`, `still_broken`, `flaky`, `healed`, or `blocked`. Exit `1` when any bug is `still_broken` or `flaky`.
 - Vitest coverage for fingerprints, trace serialisation, verdicts, and `diffRuns`, plus an integration test. CI runs `npm test`.
+- Product oracles fail a step when the page throws, a document returns HTTP 404, an action returns HTTP 5xx, or the clicked control is disabled. Replay uses the same oracles.
+- Reusable buggy/fixed demo app under `test/fixtures/demo-app`. `npm test` covers it with a stub LLM. `.github/workflows/e2e-live.yml` runs the same app with a real model (manual, nightly, and pushes to `main`).
 
 ### Fixed
 

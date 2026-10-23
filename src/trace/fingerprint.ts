@@ -50,6 +50,16 @@ export function normaliseErrorSignal(error: string | undefined): string {
   ) return 'not-editable';
   if (raw.includes('invalid_url') || raw.includes('non-http')) return 'invalid-url';
   if (raw.includes('locator_mismatch') || raw.includes('no longer matches')) return 'locator-mismatch';
+  // Product oracles. These codes are checked before the broad "navigation"
+  // substring and the 5xx regex so `http-404` stays a 404 and `pageerror`
+  // stays a page error. The exception text itself is not the signal.
+  if (raw.includes('pageerror') || raw.includes('page error')) return 'page-error';
+  if (
+    raw.includes('element-disabled')
+    || raw.includes('control is disabled')
+    || raw.includes('element is disabled')
+  ) return 'element-disabled';
+  if (raw.includes('http-404') || raw.includes('http 404')) return 'http-4xx';
   if (
     raw.includes('net::err_')
     || raw.includes('err_connection')
@@ -120,13 +130,15 @@ export function failureCategory(input: {
   const blob = `${input.error || ''} ${input.observation || ''}`.toLowerCase();
 
   if (input.tool === 'assert_text' || signal === 'assertion-failed') return 'assertion';
+  if (signal === 'page-error' || blob.includes('page crash') || blob.includes('pageerror')) return 'page-error';
   if (signal === 'http-5xx' || (input.networkStatus !== undefined && input.networkStatus >= 500)) return 'network';
-  if (blob.includes('page crash') || blob.includes('pageerror')) return 'page-error';
   if (
-    input.tool === 'goto'
+    signal === 'http-4xx'
+    || input.tool === 'goto'
     || signal === 'navigation-failed'
     || signal === 'invalid-url'
   ) return 'navigation';
+  if (signal === 'element-disabled') return 'interaction';
   if (signal === 'timeout') return 'timeout';
   return 'interaction';
 }

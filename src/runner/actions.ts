@@ -119,6 +119,8 @@ export async function executeAction(page: Page, action: ResolvedAction, timeoutM
 
       case 'click': {
         const locator = buildLocator(page, action);
+        const disabled = await failIfDisabled(locator, action);
+        if (disabled) return disabled;
         await locator.first().click({ timeout: timeoutMs });
         await settleSPA(page).catch(() => {});
         return { status: 'passed', observation: `Clicked ${describeTarget(action)}.` };
@@ -163,6 +165,8 @@ export async function executeAction(page: Page, action: ResolvedAction, timeoutM
         const key = action.value || 'Enter';
         if (action.target){
           const locator = buildLocator(page, action);
+          const disabled = await failIfDisabled(locator, action);
+          if (disabled) return disabled;
           await locator.first().press(key, { timeout: timeoutMs });
         } else {
           await page.keyboard.press(key);
@@ -348,6 +352,27 @@ export function describeTarget(action: ResolvedAction): string {
   if (!action.target) return '(no target)';
   const prefix = action.locator && action.locator !== 'css' ? `${action.locator}:` : '';
   return `${prefix}${truncate(action.target, 60)}`;
+}
+
+/**
+ * A disabled control is a product bug. Playwright would otherwise wait until
+ * the control becomes enabled and the runner would record a soft timeout skip.
+ * A missing element throws immediately (`isDisabled` defaults to no wait) and
+ * falls through to the real action.
+ */
+async function failIfDisabled(locator: Locator, action: ResolvedAction): Promise<ActionOutcome | undefined> {
+  try {
+    if (await locator.first().isDisabled()) {
+      return {
+        status: 'failed',
+        observation: `${capitalise(action.tool)} on ${describeTarget(action)} failed: control is disabled.`,
+        error: 'element-disabled',
+      };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function isSoftAutomationMiss(msg: string): boolean {

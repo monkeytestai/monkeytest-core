@@ -284,6 +284,8 @@ export interface NetworkFailureEvidence {
   method: string;
   status?: number;
   failureText?: string;
+  /** Playwright resource type (`document`, `xhr`, `fetch`, …) when the response was observed. */
+  resourceType?: string;
 }
 
 /* ── Action traces (replay) and v2 fingerprints ───────────────────────── */

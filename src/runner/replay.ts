@@ -7,16 +7,14 @@
  * original instruction is re-resolved and the result is marked `healed`.
  */
 
-import { chromium, type Browser, type BrowserContext, type ConsoleMessage, type Page, type Request } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { LLM } from '../llm/index.js';
 import type {
-  ConsoleErrorEvidence,
   FlowResult,
   FlowStatus,
   FlowTrace,
-  NetworkFailureEvidence,
   RunResult,
   StepResult,
   TestFlow,
@@ -32,6 +30,7 @@ import {
   type ResolvedAction,
 } from './actions.js';
 import { createFlowTimeout } from './timeout.js';
+import { applyPassedOracles, attachStepEvidence } from './evidence.js';
 
 export interface ReplayOptions {
   screenshotsDir: string;
@@ -145,7 +144,7 @@ async function replayFlow(
   signal.addEventListener('abort', onAbort, { once: true });
 
   const page = await context.newPage();
-  const evidence = collectEvidence(page);
+  const evidence = attachStepEvidence(page);
 
   const steps: StepResult[] = [];
   const traceSteps: TraceStep[] = [];
@@ -168,6 +167,7 @@ async function replayFlow(
       const startedAt = new Date().toISOString();
       const stepStart = Date.now();
       const played = await playStep(page, trace, recorded, opts, stepTimeout);
+      played.outcome = await applyPassedOracles(page, evidence, recorded.index, played.outcome);
       const urlAfter = safeUrl(page);
 
       const result: StepResult = {
@@ -425,46 +425,6 @@ async function openContext(browser: Browser, opts: ReplayOptions & { screenshots
       recordVideo: { dir: opts.screenshotsDir, size: { width: 1280, height: 800 } },
     }),
   });
-}
-
-function collectEvidence(page: Page): {
-  stepIndex: number;
-  consoleByStep: Map<number, ConsoleErrorEvidence[]>;
-  networkByStep: Map<number, NetworkFailureEvidence[]>;
-} {
-  const state = {
-    stepIndex: 0,
-    consoleByStep: new Map<number, ConsoleErrorEvidence[]>(),
-    networkByStep: new Map<number, NetworkFailureEvidence[]>(),
-  };
-
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error' && msg.type() !== 'warning') return;
-    const arr = state.consoleByStep.get(state.stepIndex) ?? [];
-    arr.push({
-      message: msg.text().slice(0, 500),
-      level: msg.type() === 'error' ? 'error' : 'warning',
-      url: msg.location()?.url,
-      lineNumber: msg.location()?.lineNumber,
-    });
-    state.consoleByStep.set(state.stepIndex, arr);
-  });
-
-  page.on('requestfailed', (req: Request) => {
-    if (req.url().startsWith('ws:') || req.url().startsWith('wss:')) return;
-    const arr = state.networkByStep.get(state.stepIndex) ?? [];
-    arr.push({ url: req.url(), method: req.method(), failureText: req.failure()?.errorText });
-    state.networkByStep.set(state.stepIndex, arr);
-  });
-
-  page.on('response', (res) => {
-    if (res.status() < 500) return;
-    const arr = state.networkByStep.get(state.stepIndex) ?? [];
-    arr.push({ url: res.url(), method: res.request().method(), status: res.status() });
-    state.networkByStep.set(state.stepIndex, arr);
-  });
-
-  return state;
 }
 
 async function shot(

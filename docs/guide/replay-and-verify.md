@@ -85,6 +85,14 @@ The command prints a table. `--json` prints the same report as JSON, including `
 
 `blocked` stays exit `0` because the check was inconclusive. Read the table before treating a `0` as "everything is fixed".
 
+A click that Playwright considers successful is still a failure when the page throws, the document comes back HTTP 404, the action returns HTTP 5xx, or the control is disabled. Replay checks those the same way, so `verify` can report them fixed.
+
+## Live check
+
+`npm test` is the contributor path: unit tests and a stub LLM against `test/fixtures/demo-app`. No API key is required, and pull requests run only that.
+
+Maintainers run the same app with a real model from Actions → **Live e2e**. Add `GEMINI_API_KEY` (model `gemini-flash-lite-latest`) as an Actions secret. `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional legs and are skipped when unset. The workflow runs on demand, nightly, and on pushes to `main`. Pull requests keep running `npm test` only, so fork PRs never receive those secrets. The maintainer steps are in `CONTRIBUTING.md`.
+
 ## Not in this version
 
 Traces are replayed in full; they are not minimised to the shortest prefix that still reproduces the bug. There is no exporter that writes a standalone Playwright test per bug. Both are natural follow-ups on top of the trace stored on the bug.

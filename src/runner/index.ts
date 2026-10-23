@@ -25,7 +25,7 @@
  * deterministically and reports.
  */
 
-import { chromium, type Browser, type Page, type ConsoleMessage, type Request } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import { mkdirSync, renameSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { LLM } from '../llm/index.js';
@@ -37,8 +37,6 @@ import type {
   StepResult,
   StepStatus,
   RunResult,
-  ConsoleErrorEvidence,
-  NetworkFailureEvidence,
   TraceStep,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
@@ -51,6 +49,7 @@ import {
   type ResolvedAction,
 } from './actions.js';
 import { createFlowTimeout } from './timeout.js';
+import { applyPassedOracles, attachStepEvidence } from './evidence.js';
 import { serializeTrace, serializeTraceStep } from '../trace/serialize.js';
 
 export interface RunnerOptions {
@@ -252,48 +251,9 @@ async function runFlow(
 
   const page = await context.newPage();
 
-  // Per-flow buffers. We attribute console errors / network failures to the
-  // step that was running when they fired — see `currentStepIndex`.
-  let currentStepIndex = 0;
-  const consoleByStep: Map<number, ConsoleErrorEvidence[]> = new Map();
-  const networkByStep: Map<number, NetworkFailureEvidence[]> = new Map();
-
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error' && msg.type() !== 'warning') return;
-    const arr = consoleByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      message: msg.text().slice(0, 500),
-      level: msg.type() === 'error' ? 'error' : 'warning',
-      url: msg.location()?.url,
-      lineNumber: msg.location()?.lineNumber,
-    });
-    consoleByStep.set(currentStepIndex, arr);
-  });
-
-  page.on('requestfailed', (req: Request) => {
-    // Ignore the noise — websockets and dev-server pings break constantly
-    // and would drown out the real signal.
-    if (req.url().startsWith('ws:') || req.url().startsWith('wss:')) return;
-    const arr = networkByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      url: req.url(),
-      method: req.method(),
-      failureText: req.failure()?.errorText,
-    });
-    networkByStep.set(currentStepIndex, arr);
-  });
-
-  page.on('response', (res) => {
-    const status = res.status();
-    if (status < 500) return;
-    const arr = networkByStep.get(currentStepIndex) ?? [];
-    arr.push({
-      url: res.url(),
-      method: res.request().method(),
-      status,
-    });
-    networkByStep.set(currentStepIndex, arr);
-  });
+  // Per-flow buffers. Listeners attribute console, page errors, and network
+  // failures to whichever step index is current.
+  const evidence = attachStepEvidence(page);
 
   const steps: StepResult[] = [];
   const traceSteps: TraceStep[] = [];
@@ -309,9 +269,19 @@ async function runFlow(
   //    part of the trace either way so replay can repeat it without the LLM.
   const navStarted = Date.now();
   const navStartedAt = new Date().toISOString();
+  let navOracleError: string | undefined;
   try {
+    evidence.stepIndex = 0;
     await page.goto(flow.startUrl, { waitUntil: 'domcontentloaded', timeout: opts.stepTimeoutMs });
     await settleSPA(page);
+    const nav = await applyPassedOracles(page, evidence, 0, {
+      status: 'passed',
+      observation: `Navigated to ${flow.startUrl}.`,
+    });
+    if (nav.status === 'failed') {
+      navOracleError = nav.error || nav.observation;
+      throw new Error(navOracleError);
+    }
     traceSteps.push(serializeTraceStep({
       index: 0,
       action: `Open ${flow.startUrl}`,
@@ -325,16 +295,20 @@ async function runFlow(
       resolution: 'recorded',
     }));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = navOracleError || (err instanceof Error ? err.message : String(err));
     const blockingStep: StepResult = {
       index: 0,
       action: `Open ${flow.startUrl}`,
       status: 'failed',
-      observation: `Could not load the starting page (${msg}).`,
+      observation: navOracleError
+        ? `Opening ${flow.startUrl} failed: ${msg}.`
+        : `Could not load the starting page (${msg}).`,
       tool: 'goto',
       target: flow.startUrl,
       error: msg,
       screenshotPath: await safeShot(page, opts.screenshotsDir, flow.id, 0, 'failed'),
+      consoleErrors: evidence.consoleByStep.get(0),
+      networkFailures: evidence.networkByStep.get(0),
     };
     steps.push(blockingStep);
     traceSteps.push(serializeTraceStep({
@@ -348,6 +322,8 @@ async function runFlow(
       observation: blockingStep.observation,
       error: msg,
       screenshotPath: blockingStep.screenshotPath,
+      consoleErrors: blockingStep.consoleErrors,
+      networkFailures: blockingStep.networkFailures,
       resolution: 'recorded',
     }));
     flowFailed = true;
@@ -378,7 +354,7 @@ async function runFlow(
   // 2. Walk the planned steps.
   for (let i = 0; i < flow.steps.length; i++){
     const stepIndex = i + 1;
-    currentStepIndex = stepIndex;
+    evidence.stepIndex = stepIndex;
     const step = flow.steps[i];
 
     opts.onEvent?.({ type: 'step.start', flowId: flow.id, index: stepIndex, step });
@@ -466,7 +442,12 @@ async function runFlow(
     }
 
     const locator = await captureLocator(page, resolved);
-    const exec = await executeAction(page, resolved, opts.stepTimeoutMs);
+    const exec = await applyPassedOracles(
+      page,
+      evidence,
+      stepIndex,
+      await executeAction(page, resolved, opts.stepTimeoutMs),
+    );
     const screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, exec.status);
     const durationMs = Date.now() - stepStart;
 
@@ -482,8 +463,8 @@ async function runFlow(
       resolution: 'recorded',
       durationMs,
       screenshotPath,
-      consoleErrors: consoleByStep.get(stepIndex),
-      networkFailures: networkByStep.get(stepIndex),
+      consoleErrors: evidence.consoleByStep.get(stepIndex),
+      networkFailures: evidence.networkByStep.get(stepIndex),
       ...(exec.error ? { error: exec.error } : {}),
     };
     steps.push(result);

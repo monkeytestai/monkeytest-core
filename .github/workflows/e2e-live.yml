@@ -1,0 +1,96 @@
+# Live model run against test/fixtures/demo-app.
+#
+# Triggers: manual dispatch, a nightly schedule, and pushes to main.
+# There is no pull_request trigger. Fork PRs must never receive these secrets.
+# Layer 1 (npm test, no keys) stays in ci.yml.
+
+name: Live e2e
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-live-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    # Defense in depth if a pull_request trigger is added later.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: gemini
+            model: gemini-flash-lite-latest
+            secret: GEMINI_API_KEY
+          - provider: openai
+            model: gpt-4o-mini
+            secret: OPENAI_API_KEY
+          - provider: anthropic
+            model: claude-haiku-4-5
+            secret: ANTHROPIC_API_KEY
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LIVE_PROVIDER: ${{ matrix.provider }}
+      LIVE_MODEL: ${{ matrix.model }}
+      LIVE_SECRET_NAME: ${{ matrix.secret }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Skip when this provider's secret is absent
+        id: gate
+        run: |
+          set -euo pipefail
+          case "$LIVE_SECRET_NAME" in
+            GEMINI_API_KEY) value="${GEMINI_API_KEY:-}" ;;
+            OPENAI_API_KEY) value="${OPENAI_API_KEY:-}" ;;
+            ANTHROPIC_API_KEY) value="${ANTHROPIC_API_KEY:-}" ;;
+            *) echo "Unknown secret name: $LIVE_SECRET_NAME" >&2; exit 1 ;;
+          esac
+          if [ -n "$value" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$LIVE_SECRET_NAME" = "GEMINI_API_KEY" ] && [ "${{ github.event_name }}" != "push" ]; then
+            echo "GEMINI_API_KEY is required for a manual or scheduled live run." >&2
+            exit 1
+          fi
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+          echo "No $LIVE_SECRET_NAME configured; skipping $LIVE_PROVIDER."
+
+      - run: npm ci
+        if: steps.gate.outputs.skip != 'true'
+      - name: Install Playwright Chromium
+        if: steps.gate.outputs.skip != 'true'
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+        if: steps.gate.outputs.skip != 'true'
+      - name: Live monkeytest against the demo fixture
+        if: steps.gate.outputs.skip != 'true'
+        run: npx tsx scripts/live-e2e.ts
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-${{ matrix.provider }}-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            e2e-artifacts/runs
+            e2e-artifacts/shots
+            e2e-artifacts/live-e2e.log

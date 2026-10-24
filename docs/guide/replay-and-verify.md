@@ -53,7 +53,7 @@ monkeytest rerun 2026-05-02T10-15-00Z
 monkeytest rerun --heal           # LLM only if a locator misses
 ```
 
-By default this replays the stored trace exactly and writes a new run file. A step whose locator no longer matches fails with `locator_mismatch` and the rest of that flow is not attempted.
+By default this replays the stored trace exactly and writes a new run file. A step whose locator no longer matches fails with `locator_mismatch` and the rest of that flow is not attempted. A step the original run already marked `skipped` stays skipped when its locator misses, so a later failure is still replayed. A step that originally passed or failed still stops the flow.
 
 `--heal` asks the runner LLM to re-resolve that one step from the original instruction. The step is marked `resolution: "healed"`. Healing is off unless you ask for it.
 

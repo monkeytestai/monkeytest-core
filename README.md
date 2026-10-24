@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@monkeytestai/monkeytest-core"><img src="https://img.shields.io/badge/npm-not%20yet%20published-lightgrey" alt="npm: not yet published" /></a>
+  <a href="https://www.npmjs.com/package/@monkeytestai/monkeytest-core"><img src="https://img.shields.io/npm/v/@monkeytestai/monkeytest-core" alt="npm @monkeytestai/monkeytest-core" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+" /></a>
   <a href="https://docs.monkeytest.ai"><img src="https://img.shields.io/badge/docs-docs.monkeytest.ai-7c3aed" alt="Documentation" /></a>
   <a href="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml"><img src="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
@@ -35,13 +35,13 @@ Most "AI testing" tools stop at *finding* bugs. MonkeyTest Core is built around 
 Point it at a URL. It crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and writes a stable, versioned `plan.json` you can commit to git. Tomorrow, after you ship a fix, **`monkeytest rerun`** re-executes the *exact same* plan — no LLM cost for re-planning, no plan drift between runs — and **`monkeytest diff`** tells you what's new, what's fixed, what regressed.
 
 ```bash
-node dist/cli.js run https://example.com   # first run: explore + plan + execute, exit 1 if bugs
+npx monkeytest run https://example.com   # first run: explore + plan + execute, exit 1 if bugs
 # ...you ship a fix...
-node dist/cli.js rerun                     # re-runs the same plan, exit 1 if any blocking bug remains
-node dist/cli.js diff prev latest          # 2 fixed, 0 new, 1 still broken, 0 regressed (net -2)
+npx monkeytest rerun                     # re-runs the same plan, exit 1 if any blocking bug remains
+npx monkeytest diff prev latest          # 2 fixed, 0 new, 1 still broken, 0 regressed (net -2)
 ```
 
-`node dist/cli.js` is the binary in a clone. After the npm package exists, the same subcommands are `npx monkeytest`.
+Those subcommands come from `npm install @monkeytestai/monkeytest-core`. A clone runs them with `node dist/cli.js`.
 
 Or programmatically — same primitives:
 
@@ -68,11 +68,29 @@ const diff = diffRuns(a, b);
 console.log(`${diff.stats.fixed} fixed, ${diff.stats.regressed} regressed`);
 ```
 
-No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves once `@monkeytestai/monkeytest-core` is installed. That package is not on npm yet — start with the clone below, and see [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
+No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves from [`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) on npm. See [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
 
-## Try it in 60 seconds
+## Install
 
-Node.js 20 or newer. No API key. The smoke script stubs the LLM, crawls `https://example.com`, and prints `OK — engine pipeline is wired correctly.`
+Node.js 20 or newer.
+
+```bash
+npm install @monkeytestai/monkeytest-core
+npx playwright install chromium
+```
+
+[@monkeytestai/monkeytest-core](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.0** is the published package. The CLI is `npx monkeytest`.
+
+```bash
+export GEMINI_API_KEY="paste-your-key"
+npx monkeytest run https://example.com --max 2 --flows 1
+```
+
+Screenshots are written to `.monkeytest/shots/`. A free Gemini key, or Ollama on localhost, is in the [quick start](https://docs.monkeytest.ai/guide/quick-start), including where `plan.json`, `runs/`, and `shots/` show up, and how `rerun` / `diff` work.
+
+### From a clone (contributors)
+
+The no-key smoke script lives in the repository. It stubs the LLM, crawls `https://example.com`, and prints `OK — engine pipeline is wired correctly.`
 
 ```bash
 git clone https://github.com/monkeytestai/monkeytest-core.git && cd monkeytest-core
@@ -80,18 +98,7 @@ npm install && npm run build
 npx playwright install chromium && node scripts/smoke.mjs
 ```
 
-`npm run build` writes `dist/cli.js`. Next step with a real model: a free Gemini key, or Ollama on localhost. Both are copy-paste blocks in the [quick start](https://docs.monkeytest.ai/guide/quick-start), including where `plan.json`, `runs/`, and `shots/` show up, and how `rerun` / `diff` work.
-
-```bash
-export GEMINI_API_KEY="paste-your-key"
-node dist/cli.js run https://example.com --max 2 --flows 1
-```
-
-Screenshots are written to `.monkeytest/shots/`.
-
-### npm (not available yet)
-
-`npm install @monkeytestai/monkeytest-core` returns 404 as of October 2026. When the package is published, that command plus `npx playwright install chromium` is the install. Publishing needs the `NPM_TOKEN` Actions secret and a `v*` tag ([release workflow](./.github/workflows/release.yml)). Until then, use the clone.
+`npm run build` writes `dist/cli.js`. The same subcommands are `node dist/cli.js run ...`.
 
 ## Docker
 
@@ -162,7 +169,7 @@ for (const bug of run.bugs.filter(b => b.severity !== 'minor')){
 
 Everything lives at **[docs.monkeytest.ai](https://docs.monkeytest.ai)**:
 
-- [Quick start](https://docs.monkeytest.ai/guide/quick-start) — clone, build, no-key smoke run, then Gemini or Ollama
+- [Quick start](https://docs.monkeytest.ai/guide/quick-start) — npm install, or a clone for the no-key smoke run, then Gemini or Ollama
 - [Why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) — how it compares with nearby tools
 - [The bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) — explore once, run repeatedly, diff
 - [CLI reference](https://docs.monkeytest.ai/reference/cli) — every subcommand and flag

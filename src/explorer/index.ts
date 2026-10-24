@@ -328,22 +328,68 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
       return true;
     });
 
+    function fieldLabel(el: Element): string {
+      const control = el as HTMLInputElement;
+      if (control.id) {
+        const byFor = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+        if (byFor) {
+          const text = txt(byFor);
+          if (text) return text.slice(0, 80);
+        }
+      }
+      const aria = control.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria.trim().replace(/\s+/g, ' ').slice(0, 80);
+      const labelledBy = control.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        const text = labelledBy.split(/\s+/).map(id => {
+          const node = document.getElementById(id);
+          return node ? txt(node) : '';
+        }).filter(Boolean).join(' ').trim();
+        if (text) return text.slice(0, 80);
+      }
+      const parent = control.closest('label');
+      if (parent) {
+        const clone = parent.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('input, textarea, select').forEach(node => node.remove());
+        const text = txt(clone);
+        if (text) return text.slice(0, 80);
+      }
+      return '';
+    }
+
     const forms = Array.from(document.querySelectorAll('form')).slice(0, 10).map(f => {
       const form = f as HTMLFormElement;
-      const inputs = Array.from(form.querySelectorAll('input, textarea, select'))
-        .map(i => {
-          const el = i as HTMLInputElement;
-          const type = (el.type || '').toLowerCase();
-          if (type === 'hidden' || type === 'submit' || type === 'button') return '';
-          return el.name || el.placeholder || el.type || el.tagName.toLowerCase();
-        })
-        .filter(Boolean);
+      const controls = Array.from(form.querySelectorAll('input, textarea, select')).flatMap(i => {
+        const el = i as HTMLInputElement;
+        const type = (el.type || el.tagName || '').toLowerCase();
+        if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image' || type === 'reset') return [];
+        const name = el.name || '';
+        const placeholder = el.placeholder || '';
+        const label = fieldLabel(el);
+        const token = name || placeholder || type;
+        if (!token) return [];
+        return [{
+          token,
+          ...(name ? { name } : {}),
+          ...(label ? { label } : {}),
+          ...(placeholder ? { placeholder } : {}),
+          ...(type ? { type } : {}),
+        }];
+      });
       const submit = form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
       const submitLabel = submit ? (txt(submit) || (submit as HTMLInputElement).value || '') : '';
       return {
         action: form.action || '',
         method: (form.method || 'get').toLowerCase(),
-        fields: inputs,
+        fields: controls.map(control => control.token),
+        ...(controls.length ? {
+          inputs: controls.map(control => ({
+            ...(control.name ? { name: control.name } : {}),
+            ...(control.label ? { label: control.label } : {}),
+            ...(control.placeholder ? { placeholder: control.placeholder } : {}),
+            ...(control.type ? { type: control.type } : {}),
+          })),
+        } : {}),
         ...(submitLabel ? { submitLabel: submitLabel.slice(0, 80) } : {}),
       };
     });

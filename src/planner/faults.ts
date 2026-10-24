@@ -14,7 +14,8 @@
  */
 
 import type { SiteMap, SiteMapPage, TestFlow } from '../types.js';
-import { canonicalPageUrl, looksLikeAuthUrl } from '../explorer/queue.js';
+import { canonicalPageUrl, isFormSurfaceLink, looksLikeAuthUrl } from '../explorer/queue.js';
+import { isReservedFlowId } from './forms.js';
 
 const NAV_LABEL = /^(home|back|back home|back to home|menu|skip|skip to content|logo)$/i;
 
@@ -132,14 +133,18 @@ function alreadyCovers(flows: TestFlow[], pageUrl: string, label: string): boole
   );
 }
 
-/** Model flows can be replaced. Form and fault flows this engine inserted cannot. */
+/**
+ * Model flows can be replaced. Form and fault flows this engine inserted
+ * cannot. A help, contact, or about page is kept until every shop flow is gone.
+ */
 function lastModelFlow(flows: TestFlow[]): number {
+  let surfaceFallback = -1;
   for (let i = flows.length - 1; i >= 0; i--) {
-    const id = flows[i].id;
-    if (id === 'public-form-submit' || id.startsWith('fault-')) continue;
-    return i;
+    if (isReservedFlowId(flows[i].id)) continue;
+    if (!isFormSurfaceLink({ url: flows[i].startUrl })) return i;
+    if (surfaceFallback < 0) surfaceFallback = i;
   }
-  return -1;
+  return surfaceFallback;
 }
 
 function sameOrigin(pageUrl: string, href: string): boolean {

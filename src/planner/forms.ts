@@ -1,9 +1,14 @@
 /**
  * Guarantee a form-submit flow when the crawl actually saw a public form.
  *
- * The planner LLM is still asked to do this. This pass is the floor: a small
- * model that only plans shop journeys cannot drop the contact form on the
- * floor. URLs and field names come from the sitemap. Nothing is invented.
+ * The planner LLM is still asked to do this. The slot is reserved either way:
+ * a valid shopping-only plan, and a plan that only vaguely says "submit" on
+ * the form page, both keep the grounded flow. Its URL, action, and fields
+ * come from the sitemap. Nothing is invented.
+ *
+ * When that form sits on a help, contact, or support page, this flow is the
+ * help exploration. A model flow that only reads such a page is dropped after
+ * shop flows, so it survives a full quota.
  */
 
 import type { SiteMap, SiteMapForm, SiteMapPage, TestFlow } from '../types.js';
@@ -47,10 +52,19 @@ export function bestPublicForm(siteMap: SiteMap): RankedForm | undefined {
   return best;
 }
 
+/**
+ * True when a model flow is an attempt at the same page's form.
+ * Callers still install the grounded flow; this only drops the duplicate.
+ */
 export function flowCoversForm(flow: TestFlow, pageUrl: string): boolean {
   if (canonicalPageUrl(flow.startUrl) !== canonicalPageUrl(pageUrl)) return false;
   const text = flow.steps.map(step => step.action).join(' ').toLowerCase();
   return /\b(submit|send)\b/.test(text);
+}
+
+/** Form and fault flows stay. Shop flows are what a full quota gives up. */
+export function isReservedFlowId(id: string): boolean {
+  return id === 'public-form-submit' || id.startsWith('fault-');
 }
 
 export function ensurePublicFormFlow(
@@ -60,29 +74,71 @@ export function ensurePublicFormFlow(
 ): { flows: TestFlow[]; injected: boolean } {
   if (maxFlows < 1) return { flows: [], injected: false };
   const target = bestPublicForm(siteMap);
-  if (!target) return { flows: flows.slice(0, maxFlows), injected: false };
-  if (flows.some(flow => flowCoversForm(flow, target.page.url))) {
-    return { flows: flows.slice(0, maxFlows), injected: false };
-  }
+  if (!target) return { flows: fitModelFlows(flows, maxFlows), injected: false };
 
-  const injected = buildFormFlow(target);
-  const rest = flows.filter(flow => flow.id !== injected.id);
-  if (rest.length >= maxFlows) rest.pop();
+  const grounded = buildFormFlow(target);
+  const rest = flows.filter(flow => flow.id !== grounded.id && !flowCoversForm(flow, target.page.url));
   return {
-    flows: [injected, ...rest].slice(0, maxFlows),
+    flows: [grounded, ...fitModelFlows(rest, maxFlows - 1)].slice(0, maxFlows),
     injected: true,
   };
+}
+
+/**
+ * Shrink to `budget` model flows. Drop shop and product journeys before a
+ * flow that starts on a help, contact, support, or about page the crawl saw.
+ */
+function fitModelFlows(flows: TestFlow[], budget: number): TestFlow[] {
+  const next = flows.slice();
+  const room = Math.max(0, budget);
+  while (next.length > room) {
+    const index = indexToDrop(next);
+    if (index < 0) break;
+    next.splice(index, 1);
+  }
+  return next.slice(0, room);
+}
+
+function indexToDrop(flows: TestFlow[]): number {
+  let surfaceFallback = -1;
+  for (let i = flows.length - 1; i >= 0; i--) {
+    if (isReservedFlowId(flows[i].id)) continue;
+    if (!isFormSurfaceLink({ url: flows[i].startUrl })) return i;
+    if (surfaceFallback < 0) surfaceFallback = i;
+  }
+  return surfaceFallback;
+}
+
+interface FieldHint {
+  quoted: string;
+  name?: string;
+}
+
+function fieldHints(form: SiteMapForm): FieldHint[] {
+  if (form.inputs && form.inputs.length > 0) {
+    return form.inputs.slice(0, 6).flatMap(input => {
+      const quoted = cleanQuote(input.label || input.name || input.placeholder || input.type || '');
+      if (!quoted) return [];
+      const name = input.name ? cleanQuote(input.name) : undefined;
+      return [{ quoted, ...(name ? { name } : {}) }];
+    });
+  }
+  return form.fields.filter(Boolean).slice(0, 6).map(token => ({ quoted: cleanQuote(token) }));
+}
+
+function cleanQuote(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().replace(/["“”]/g, "'").slice(0, 80);
 }
 
 function buildFormFlow(target: RankedForm): TestFlow {
   const { page, form } = target;
   const actionPath = pathOf(form.action);
   const where = actionPath ? ` on the form that submits to ${actionPath}` : ' on the form';
-  const fields = form.fields.filter(Boolean).slice(0, 6);
+  const fields = fieldHints(form);
   const steps = [
     ...fields.map(field => ({
-      action: `Fill the "${field}" field${where}`,
-      expectation: `The ${field} field accepts a value.`,
+      action: `Fill the "${field.quoted}" field${field.name ? ` (name="${field.name}")` : ''}${where}`,
+      expectation: `The ${field.quoted} field accepts a value.`,
     })),
     {
       action: form.submitLabel

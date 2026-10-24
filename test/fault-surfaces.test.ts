@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LLM } from '../src/llm/index.js';
-import { directActionFromStep, type PageSkeletonForLLM } from '../src/runner/actions.js';
+import { directActionFromStep, groundFillAction, type PageSkeletonForLLM } from '../src/runner/actions.js';
 import { plan } from '../src/planner/index.js';
 import { ensurePublicFormFlow } from '../src/planner/forms.js';
 import { ensureFaultSurfaceFlows } from '../src/planner/faults.js';
@@ -142,6 +142,45 @@ describe('fault-surface flows', () => {
     expect(actions).toContain('Click "Apply coupon"');
     expect(result.notes).toContain('Save order');
   });
+
+  it('keeps the contact action when a valid plan is shop flows plus a vague submit', async () => {
+    const shops = [
+      'homepage-quick-add-ripe-top',
+      'men-shop-add-multiple-tops',
+      'men-crew-neck-filter-and-add',
+      'about-page-brand-information',
+      'browse-womens-apparel',
+    ].map(id => ({
+      ...shopFlow(),
+      id,
+      name: `Shop ${id}`.slice(0, 80),
+      description: 'Add a product from the shop.',
+      startUrl: id.startsWith('about') ? `${ORIGIN}/about` : `${ORIGIN}/`,
+      steps: [{ action: 'Add a ripe top to the bag', expectation: 'The bag updates.' }],
+    }));
+    const weak = {
+      ...shopFlow(),
+      id: 'help-page-send-note',
+      name: 'Send a note',
+      description: 'Submit whatever is on the contact page.',
+      startUrl: `${ORIGIN}/contact`,
+      steps: [{ action: 'Submit the page', expectation: 'Something happens.' }],
+      expectation: 'The page submits.',
+    };
+    const llm: LLM = {
+      providerLabel: 'stub',
+      async generateJSON() {
+        return { flows: [weak, ...shops], notes: 'Shop flows plus a vague submit.' };
+      },
+    };
+    const result = await plan(fixtureMap(), llm, { maxFlows: 6 });
+    const form = result.flows.find(flow => flow.id === 'public-form-submit');
+    expect(form?.startUrl).toBe(`${ORIGIN}/contact`);
+    expect(form?.steps.map(step => step.action).join('\n')).toContain('/api/contact');
+    expect(result.flows.some(flow => flow.id === 'help-page-send-note')).toBe(false);
+    expect(result.flows.some(flow => flow.id.startsWith('fault-'))).toBe(true);
+    expect(result.flows.length).toBeLessThanOrEqual(6);
+  });
 });
 
 describe('direct actions', () => {
@@ -166,6 +205,39 @@ describe('direct actions', () => {
     });
     expect(directActionFromStep('Fill the "email" field on the form that submits to /api/contact', skeleton)).toMatchObject({
       tool: 'fill', locator: 'label', target: 'Email', value: 'qa@example.com',
+    });
+    expect(directActionFromStep('Fill the "email" field on the form that submits to /api/contact', {
+      ...skeleton,
+      inputs: [{ name: 'email', type: 'email' }],
+    })).toMatchObject({
+      tool: 'fill', locator: 'css', target: '[name="email"]', value: 'qa@example.com',
+    });
+    expect(directActionFromStep('Fill the "What do you need?" field (name="message") on the form that submits to /api/contact', {
+      ...skeleton,
+      inputs: [{ label: 'What do you need?', name: 'message', type: 'textarea' }],
+    })).toMatchObject({
+      tool: 'fill', locator: 'label', target: 'What do you need?', value: 'Hello from monkeytest',
+    });
+    expect(groundFillAction({
+      tool: 'fill', locator: 'placeholder', target: 'Email', value: 'qa@example.com',
+    }, skeleton)).toMatchObject({
+      tool: 'fill', locator: 'label', target: 'Email', value: 'qa@example.com',
+    });
+    expect(groundFillAction({
+      tool: 'fill', locator: 'placeholder', target: 'Email',
+    }, {
+      ...skeleton,
+      inputs: [{ name: 'email', type: 'email' }],
+    })).toMatchObject({
+      locator: 'css', target: '[name="email"]', value: 'qa@example.com',
+    });
+    expect(groundFillAction({
+      tool: 'fill', locator: 'placeholder', target: 'Search', value: 'tee',
+    }, {
+      ...skeleton,
+      inputs: [{ placeholder: 'Search', type: 'search' }],
+    })).toMatchObject({
+      locator: 'placeholder', target: 'Search', value: 'tee',
     });
     expect(directActionFromStep('Submit the form that submits to /api/contact by clicking "Send message"', skeleton)).toMatchObject({
       tool: 'click', target: 'button:Send message',

@@ -1,6 +1,6 @@
 # Reference: Overview
 
-`@monkeytestai/monkeytest-core` is a single ESM package with a small, stable surface, published on npm as version **0.4.0** (`npm install @monkeytestai/monkeytest-core`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
+`@monkeytestai/monkeytest-core` is a single ESM package with a small, stable surface, published on npm as version **0.4.1** (`npm install @monkeytestai/monkeytest-core`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
 
 All public exports come from the package root:
 

@@ -10,7 +10,7 @@ MonkeyTest Core is small enough to run on every PR. The pattern is:
 
 This page shows the canonical setup for **GitHub Actions** + **Vercel-style preview URLs**, but the pattern works anywhere.
 
-The workflow below runs `npm ci` in *your* app and imports `@monkeytestai/monkeytest-core`. Add that dependency first (`npm install @monkeytestai/monkeytest-core`). It is published at <https://www.npmjs.com/package/@monkeytestai/monkeytest-core> as version **0.4.0**. Screenshot paths in the sample are `.monkeytest/shots/`, which is where the engine writes them.
+The workflow below runs `npm ci` in *your* app and imports `@monkeytestai/monkeytest-core`. Add that dependency first (`npm install @monkeytestai/monkeytest-core`). It is published at <https://www.npmjs.com/package/@monkeytestai/monkeytest-core> as version **0.4.1**. Screenshot paths in the sample are `.monkeytest/shots/`, which is where the engine writes them.
 
 ## Minimal `runner.ts`
 

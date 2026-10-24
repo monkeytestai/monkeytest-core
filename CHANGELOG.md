@@ -34,12 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The crawler compared outbound links with `URL.origin`, so a start URL of `http://shop.example/` that redirects to `https://www.shop.example/` never left the homepage: every rewritten link looked off-origin and the queue stopped. Crawl scope now treats the apex host and `www` as one site, and `http` and `https` as one site. Another subdomain, another host, or another explicit port is still skipped. A redirect that stays on the site is stored as the URL the browser landed on; the caller's `startUrl` is unchanged. The fault-surface link check uses the same site rule, so a homepage "Track order" or "Help" link rewritten onto `https://www` is still eligible when that path was not crawled. The public-form floor is unchanged and still requires the form page in the sitemap. `www` / scheme matching for HTTP 5xx oracles is unchanged.
 - The release workflow grants `contents: write` so it can open the GitHub release after npm publish. Provenance still uses `id-token: write`. The release install command uses the package version with the leading `v` removed.
 - A valid planner response can no longer drop a public form the crawl already saw. The form-submit flow is a reserved slot: shopping-only plans, and plans whose only submit is a vague "submit" on that page, still include the grounded flow and its action URL (for example `/api/contact`). Fault-surface flows cannot take that slot. Help, contact, and about reads are dropped only after shop flows. `SiteMapForm.inputs` optionally records label, name, placeholder, and type; `fields` is unchanged. Fill steps use that label, then a `name` CSS selector, instead of an invented placeholder such as `placeholder:Email`.
 - Replay and verify keep going when a step the original run already marked `skipped` has a locator that still misses. A soft skip (for example a placeholder fill that never matched) no longer becomes `locator_mismatch` and hides a later bug, such as a form POST that returned HTTP 500. A step that originally passed or failed still stops the flow. Fingerprints are unchanged.
 - A planner model response that is invalid JSON, fails schema validation, or includes a flow with empty `steps` no longer wipes the plan. Usable model flows are kept. The public-form submit flow and scraped fault-control flows are still added, up to `maxFlows`. `plan()` records the model error on `TestPlan.notes` and emits `engine.error`. `executeAndTriage` runs that plan. An empty plan remains only when the crawl has no public form and no fault control. `RunResult` fields are unchanged. `groundedTestPlan(siteMap, maxFlows)` is the same crawl-only floor, for a host that catches a planner failure itself.
 - The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
+
+## [0.4.1] — 2026-10
+
+### Fixed
+
+- The crawler compared outbound links with `URL.origin`, so a start URL of `http://shop.example/` that redirects to `https://www.shop.example/` never left the homepage: every rewritten link looked off-origin and the queue stopped. Crawl scope now treats the apex host and `www` as one site, and `http` and `https` as one site. Another subdomain, another host, or another explicit port is still skipped. A redirect that stays on the site is stored as the URL the browser landed on; the caller's `startUrl` is unchanged. The fault-surface link check uses the same site rule, so a homepage "Track order" or "Help" link rewritten onto `https://www` is still eligible when that path was not crawled. The public-form floor is unchanged and still requires the form page in the sitemap. `www` / scheme matching for HTTP 5xx oracles is unchanged.
 
 ## [0.4.0] — 2026-05
 
@@ -150,5 +155,6 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
+[0.4.1]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.4.1
 [0.3.0]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.3.0
 [0.2.0]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.2.0

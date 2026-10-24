@@ -1,6 +1,6 @@
 # Quick start
 
-[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.0** is on npm.
+[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.1** is on npm.
 
 ```bash
 npm install @monkeytestai/monkeytest-core

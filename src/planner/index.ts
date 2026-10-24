@@ -17,6 +17,7 @@ import type { SiteMap, TestPlan, TestFlow } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import { ensurePublicFormFlow } from './forms.js';
 import { ensureFaultSurfaceFlows } from './faults.js';
+import { salvageModelFlows } from './salvage.js';
 
 export interface PlannerOptions {
   /** Soft cap on flows per plan. Default 6. */
@@ -27,24 +28,15 @@ export interface PlannerOptions {
   events?: EventBus;
 }
 
-const FlowSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(3),
-  description: z.string().min(3),
-  kind: z.enum(['happy_path', 'edge_case', 'auth_required', 'destructive', 'accessibility', 'visual']),
-  startUrl: z.string().url(),
-  steps: z.array(z.object({
-    action: z.string().min(3),
-    expectation: z.string().optional(),
-  })).min(1),
-  expectation: z.string().min(3),
-  severityIfFails: z.enum(['critical', 'major', 'minor']),
-});
-
-const PlanSchema = z.object({
-  flows: z.array(FlowSchema).min(1),
-  notes: z.string().optional(),
-});
+/**
+ * Accept a partial model payload. One empty `steps` array must not reject
+ * the sibling flows. Broken JSON still throws from `generateJSON`; `plan`
+ * catches that and continues with the grounded flows.
+ */
+const LoosePlanSchema = z.object({
+  flows: z.unknown().optional(),
+  notes: z.unknown().optional(),
+}).passthrough();
 
 export async function plan(
   siteMap: SiteMap,
@@ -165,45 +157,57 @@ Reply with JSON:
   "notes": "(optional: what you understood about the site and what you deliberately skipped)"
 }`;
 
-  const result = await llm.generateJSON({
-    label: 'planner.generate',
-    system,
-    cacheable,
-    prompt,
-    schema: PlanSchema,
-  });
-
-  // Final pass: dedupe IDs, drop login journeys when the host asked us not
-  // to plan them (LLMs still sneak them in), and re-shape into TestPlan.
-  const seen = new Set<string>();
-  let flows: TestFlow[] = result.flows.map((f, i) => {
-    let id = f.id;
-    if (seen.has(id)){
-      id = `${id}-${i + 1}`;
+  let modelNotes: string | undefined;
+  let modelProblem: string | undefined;
+  let discardedModel = false;
+  let flows: TestFlow[] = [];
+  try {
+    const result = await llm.generateJSON({
+      label: 'planner.generate',
+      system,
+      cacheable,
+      prompt,
+      schema: LoosePlanSchema,
+    });
+    const salvaged = salvageModelFlows(result.flows);
+    flows = dedupeFlowIds(salvaged.flows);
+    modelNotes = typeof result.notes === 'string' ? result.notes : undefined;
+    if (!Array.isArray(result.flows) || (result.flows.length > 0 && salvaged.flows.length === 0)) {
+      const count = Array.isArray(result.flows) ? result.flows.length : 0;
+      modelProblem = count > 0
+        ? `Planner model returned ${count} flow${count === 1 ? '' : 's'} and none had a usable step.`
+        : 'Planner model returned no flow list.';
+      discardedModel = true;
+    } else if (salvaged.dropped > 0) {
+      modelProblem = `Dropped ${salvaged.dropped} planner flow${salvaged.dropped === 1 ? '' : 's'} that had no usable steps.`;
     }
-    seen.add(id);
-    return { ...f, id };
-  });
+  } catch (err) {
+    modelProblem = err instanceof Error ? err.message : String(err);
+    discardedModel = true;
+    flows = [];
+  }
 
   if (!includeAuth){
     const publicOnly = flows.filter(f => !looksLikeLoginFlow(f));
     if (publicOnly.length > 0) flows = publicOnly;
   }
 
-  flows = flows.slice(0, maxFlows);
-
-  // Floor under the LLM: a public form that was actually crawled still gets
-  // one submit flow when maxFlows allows, even if the model only planned shop
-  // journeys. The flow's URL and fields come from the sitemap.
-  const ensured = ensurePublicFormFlow(flows, siteMap, maxFlows);
-  const faults = ensureFaultSurfaceFlows(ensured.flows, siteMap, maxFlows);
-  flows = faults.flows;
+  const grounded = groundFlows(siteMap, flows, maxFlows);
+  flows = grounded.flows;
+  if (discardedModel && modelProblem) {
+    const kept = flows.length > 0
+      ? 'grounded flows were kept'
+      : 'the crawl had no public form or fault control to keep';
+    events.emit({
+      phase: 'planner', type: 'engine.error',
+      message: `Planner model response was unusable; ${kept}. ${truncate(modelProblem, 140)}`,
+      data: { error: modelProblem },
+    });
+  }
   const notes = [
-    result.notes,
-    ensured.injected ? 'Added a form-submit flow for a public form found in the crawl.' : '',
-    faults.added.length
-      ? `Added fault-surface flows for controls the crawl saw (${faults.added.join(', ')}).`
-      : '',
+    modelNotes,
+    modelProblem ? `Planner model response could not be used in full. ${truncate(modelProblem, 400)}` : '',
+    grounded.note,
   ].filter(Boolean).join(' ') || undefined;
 
   // Surface prompt-cache stats so the SaaS can display "saved $X" tooltips.
@@ -225,6 +229,52 @@ Reply with JSON:
     notes,
   };
 
+}
+
+/**
+ * Plan made only from the crawl: public form submit plus scraped fault
+ * controls, capped at `maxFlows`. Used when the planner model throws before
+ * `plan()` can finish, so `executeAndTriage` still has flows to run.
+ */
+export function groundedTestPlan(siteMap: SiteMap, maxFlows: number, preface?: string): TestPlan {
+  const grounded = groundFlows(siteMap, [], maxFlows);
+  return {
+    startUrl: siteMap.startUrl,
+    siteType: siteMap.siteType,
+    flows: grounded.flows,
+    notes: [preface, grounded.note].filter(Boolean).join(' ') || undefined,
+  };
+}
+
+function groundFlows(
+  siteMap: SiteMap,
+  modelFlows: TestFlow[],
+  maxFlows: number,
+): { flows: TestFlow[]; note?: string } {
+  const capped = modelFlows.slice(0, Math.max(0, maxFlows));
+  const ensured = ensurePublicFormFlow(capped, siteMap, maxFlows);
+  const faults = ensureFaultSurfaceFlows(ensured.flows, siteMap, maxFlows);
+  const note = [
+    ensured.injected ? 'Added a form-submit flow for a public form found in the crawl.' : '',
+    faults.added.length
+      ? `Added fault-surface flows for controls the crawl saw (${faults.added.join(', ')}).`
+      : '',
+  ].filter(Boolean).join(' ') || undefined;
+  return { flows: faults.flows, note };
+}
+
+function dedupeFlowIds(flows: TestFlow[]): TestFlow[] {
+  const seen = new Set<string>();
+  return flows.map((flow, index) => {
+    let id = flow.id;
+    if (seen.has(id)) id = `${id}-${index + 1}`;
+    seen.add(id);
+    return id === flow.id ? flow : { ...flow, id };
+  });
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
 function looksLikeLoginFlow(f: { kind: string; name: string; description: string; steps: { action: string }[] }): boolean {

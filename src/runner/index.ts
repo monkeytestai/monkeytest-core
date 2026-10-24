@@ -49,7 +49,8 @@ import {
   type ResolvedAction,
 } from './actions.js';
 import { createFlowTimeout } from './timeout.js';
-import { applyPassedOracles, attachStepEvidence } from './evidence.js';
+import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
+import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
 import { serializeTrace, serializeTraceStep } from '../trace/serialize.js';
 
 export interface RunnerOptions {
@@ -68,6 +69,14 @@ export interface RunnerOptions {
    * library callers keep the historical counts until they opt in.
    */
   strictOracles?: boolean;
+  /**
+   * Fail a passed or skipped step when it observed a same-origin HTTP ≥500
+   * on a document, xhr, or fetch. Default false. The CLI turns this on
+   * (`--fail-on-5xx` / `--no-fail-on-5xx`). Third-party and static-asset
+   * failures stay evidence only. Independent of `strictOracles` so hosts
+   * can catch server faults without the rest of the v2 oracles.
+   */
+  failOn5xx?: boolean;
   /** Hard cap on a flow's wall-clock time. Default 180s. */
   flowTimeoutMs?: number;
   /** Launch the browser headless. Default true. */
@@ -227,6 +236,7 @@ async function runFlow(
 ): Promise<FlowResult> {
 
   const events = opts.events;
+  const origins = collectOrigins([flow.startUrl]);
 
   const flowStarted = Date.now();
 
@@ -266,9 +276,22 @@ async function runFlow(
   let flowFailed = false;
   let firstFailureReason: string | undefined;
 
-  const finish = (videoPath?: string) => finaliseFlow(
-    flow, steps, flowFailed, firstFailureReason, flowStarted, videoPath, traceSteps,
-  );
+  const finish = (videoPath?: string) => {
+    if (opts.failOn5xx) {
+      const promoted = promoteRecordedSteps(steps, traceSteps, origins);
+      if (promoted.changed) {
+        steps.splice(0, steps.length, ...promoted.steps);
+        traceSteps.splice(0, traceSteps.length, ...promoted.traceSteps);
+        if (promoted.failed) {
+          flowFailed = true;
+          firstFailureReason = firstFailureReason || promoted.failureReason;
+        }
+      }
+    }
+    return finaliseFlow(
+      flow, steps, flowFailed, firstFailureReason, flowStarted, videoPath, traceSteps,
+    );
+  };
 
   // 1. Initial navigation. Implicit "step 0" — if this fails, the whole
   //    flow is blocked before we even attempt the planned steps. The goto is
@@ -280,12 +303,16 @@ async function runFlow(
     evidence.stepIndex = 0;
     await page.goto(flow.startUrl, { waitUntil: 'domcontentloaded', timeout: opts.stepTimeoutMs });
     await settleSPA(page);
-    const nav = opts.strictOracles
+    let nav = opts.strictOracles
       ? await applyPassedOracles(page, evidence, 0, {
         status: 'passed',
         observation: `Navigated to ${flow.startUrl}.`,
       })
-      : { status: 'passed' as const, observation: `Navigated to ${flow.startUrl}.` };
+      : { status: 'passed' as const, observation: `Navigated to ${flow.startUrl}.`, error: undefined as string | undefined };
+    if (opts.failOn5xx) {
+      if (!opts.strictOracles) await flushStepEvents(page);
+      nav = outcomeWithSameOrigin5xx(nav, evidence.networkByStep.get(0), origins);
+    }
     if (nav.status === 'failed') {
       navOracleError = nav.error || nav.observation;
       throw new Error(navOracleError);
@@ -453,9 +480,13 @@ async function runFlow(
     const executed = await executeAction(page, resolved, opts.stepTimeoutMs, {
       strictOracles: opts.strictOracles,
     });
-    const exec = opts.strictOracles
+    let exec = opts.strictOracles
       ? await applyPassedOracles(page, evidence, stepIndex, executed)
       : executed;
+    if (opts.failOn5xx) {
+      if (!opts.strictOracles) await flushStepEvents(page);
+      exec = outcomeWithSameOrigin5xx(exec, evidence.networkByStep.get(stepIndex), origins);
+    }
     const screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, exec.status);
     const durationMs = Date.now() - stepStart;
 
@@ -516,6 +547,10 @@ async function runFlow(
       firstFailureReason = firstFailureReason || exec.error || exec.observation;
     }
   }
+
+  // One more beat so a 5xx that lands while the last screenshot is taken is
+  // still attributed to that step before the context closes.
+  if (opts.failOn5xx) await flushStepEvents(page);
 
   // Grab the video path before closing — Playwright finalises the file on close.
   let videoPathRaw: string | null = null;

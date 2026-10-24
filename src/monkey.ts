@@ -35,6 +35,14 @@ export interface MonkeyConfig {
    * The CLI sets this to true.
    */
   strictOracles?: boolean;
+  /**
+   * Fail a passed or skipped step that observed a same-origin HTTP ≥500
+   * (document, xhr, or fetch) and triage it as a blocking bug. Default
+   * false, so existing hosts keep the same bug counts. The CLI defaults
+   * this to true (`--no-fail-on-5xx` opts out). A per-call `run.failOn5xx`
+   * or replay `failOn5xx` overrides the constructor.
+   */
+  failOn5xx?: boolean;
 }
 
 export interface ExploreAndPlanOptions {
@@ -73,6 +81,8 @@ export class Monkey {
   private readonly triagerLLM?: LLM;
   /** v2 product oracles. Off unless the caller opts in. */
   private readonly strictOracles: boolean;
+  /** Same-origin HTTP ≥500 promotion. Off unless the caller opts in. */
+  private readonly failOn5xx: boolean;
 
   constructor(config: MonkeyConfig){
 
@@ -88,6 +98,7 @@ export class Monkey {
     // rule-based triager runs alone (zero LLM cost).
     this.triagerLLM  = config.llm.triager ? createLLM(config.llm.triager) : undefined;
     this.strictOracles = config.strictOracles === true;
+    this.failOn5xx = config.failOn5xx === true;
 
   }
 
@@ -164,6 +175,7 @@ export class Monkey {
         ...opts.run,
         events,
         strictOracles: opts.run.strictOracles ?? this.strictOracles,
+        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
       });
       events.emit({
         phase: 'runner', type: 'run.complete',
@@ -192,10 +204,14 @@ export class Monkey {
       // Polished path: rule-based triage runs first inside `triagePolished`,
       // then each bug is rewritten by the LLM. Failures fall back to the
       // deterministic copy per-bug — never lose results.
-      run = await triagePolished(rawRun, { llm: this.triagerLLM, events });
+      run = await triagePolished(rawRun, {
+        llm: this.triagerLLM,
+        events,
+        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+      });
     } else {
       events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
-      run = triage(rawRun);
+      run = triage(rawRun, { failOn5xx: opts.run.failOn5xx ?? this.failOn5xx });
       events.emit({
         phase: 'triager', type: 'triage.complete',
         message: run.bugs.length === 0
@@ -257,6 +273,7 @@ export class Monkey {
         ...opts.run,
         events,
         strictOracles: opts.run.strictOracles ?? this.strictOracles,
+        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
       });
       events.emit({
         phase: 'runner', type: 'run.complete',
@@ -275,10 +292,14 @@ export class Monkey {
 
     let run: RunResult;
     if (this.triagerLLM){
-      run = await triagePolished(rawRun, { llm: this.triagerLLM, events });
+      run = await triagePolished(rawRun, {
+        llm: this.triagerLLM,
+        events,
+        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+      });
     } else {
       events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
-      run = triage(rawRun);
+      run = triage(rawRun, { failOn5xx: opts.run.failOn5xx ?? this.failOn5xx });
       events.emit({
         phase: 'triager', type: 'triage.complete',
         message: run.bugs.length === 0
@@ -309,10 +330,12 @@ export class Monkey {
       heal: opts.heal,
       llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
       strictOracles: opts.strictOracles ?? this.strictOracles,
+      failOn5xx: opts.failOn5xx ?? this.failOn5xx,
     });
+    const failOn5xx = opts.failOn5xx ?? this.failOn5xx;
     const run = this.triagerLLM
-      ? await triagePolished(raw, { llm: this.triagerLLM })
-      : triage(raw);
+      ? await triagePolished(raw, { llm: this.triagerLLM, failOn5xx })
+      : triage(raw, { failOn5xx });
     return { run };
   }
 
@@ -325,6 +348,7 @@ export class Monkey {
       ...opts,
       llm: opts.heal ? (opts.llm ?? this.runnerLLM) : opts.llm,
       strictOracles: opts.strictOracles ?? this.strictOracles,
+      failOn5xx: opts.failOn5xx ?? this.failOn5xx,
     });
   }
 

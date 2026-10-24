@@ -21,7 +21,7 @@ What it does:
 - For each visited page, extracts: `<title>`, visible text, salient interactive elements (forms, buttons, links, inputs, menus), in-domain outbound links.
 - Asks the **explorer LLM** to summarise the page in one short paragraph and tag whether it looks auth-gated.
 - Optionally screenshots every page to `screenshotsDir` (this becomes evidence for the report).
-- Follows in-domain links breadth-first up to `maxPages`.
+- Follows in-domain links breadth-first up to `maxPages`, reserving a few of those slots for help, contact, support, and about links the crawl actually saw so a product grid cannot crowd them out. Scraped `<form>`s are stored on `SiteMapPage.forms`.
 
 Output: a `SiteMap` with `pages[]`, `pendingUrls[]`, and `failedUrls[]`. Always returned, even if some pages fail — failures don't kill the run.
 
@@ -37,6 +37,7 @@ What it does:
 - Asks the **planner LLM** for up to `maxFlows` flows, each with: a name, kind (`happy_path`, `edge_case`, `auth_required`, `destructive`, `accessibility`, `visual`), starting URL, ordered steps, and an overall expectation.
 - Validates the LLM's JSON against a strict zod schema. Anything that doesn't fit gets rejected, not silently consumed.
 - Strips flows that hit auth walls if `includeAuthFlows: false`.
+- If the sitemap contains a public form (POST contact/help preferred over a search box) and `maxFlows` allows it, keeps one submit flow whose URL and fields come from the crawl.
 
 Output: a `TestPlan { flows: TestFlow[] }`. If the planner produces zero flows (e.g., the explorer found nothing useful), the engine short-circuits with `notes` explaining why.
 

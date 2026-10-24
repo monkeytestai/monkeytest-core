@@ -44,6 +44,21 @@ describe('demo app seeded bugs', () => {
     expect(run.stats.flowsFailed).toBe(0);
   }, 60_000);
 
+  it('promotes a same-origin HTTP 500 into a blocking bug without the other strict oracles', async () => {
+    await fetch(`${demo.url}/__monkeytest/mode`, { method: 'POST', body: 'buggy' });
+    const run = await execute(demo.url, shots, llm, false, true, 'send-message');
+    expect(run.bugs).toHaveLength(1);
+    expect(run.bugs[0].severity).toBe('critical');
+    expect(run.bugs[0].fingerprintParts).toMatchObject({
+      category: 'network',
+      errorSignal: 'http-5xx',
+    });
+    expect(run.flows[0].status).toBe('failed');
+    expect(run.flows[0].steps.some(step => step.status === 'failed' && step.error === 'http-500')).toBe(true);
+    expect(run.stats.flowsFailed).toBe(1);
+    expect(run.stats.bugsCritical).toBe(1);
+  }, 60_000);
+
   it('finds each seeded category and reports them fixed once the same app is corrected', async () => {
     const posted = await fetch(`${demo.url}/__monkeytest/mode`, { method: 'POST', body: 'buggy' });
     expect(posted.status).toBe(204);
@@ -113,23 +128,32 @@ function actionFor(prompt: string) {
   throw new Error(`stub LLM has no action for step "${step}"`);
 }
 
-async function execute(url: string, shots: string, llm: LLM, strictOracles: boolean): Promise<RunResult> {
+async function execute(
+  url: string,
+  shots: string,
+  llm: LLM,
+  strictOracles: boolean,
+  failOn5xx = false,
+  only?: string,
+): Promise<RunResult> {
+  const flows = [
+    flow('save-order', 'Save the order', `${url}/checkout`, 'Click Save order'),
+    flow('track-shipment', 'Track the shipment', `${url}/checkout`, 'Click Track shipment'),
+    flow('send-message', 'Send a message', `${url}/contact`, 'Click Send message'),
+    flow('apply-coupon', 'Apply a coupon', `${url}/checkout`, 'Click Apply coupon'),
+  ];
   const plan: TestPlan = {
     startUrl: url,
     siteType: 'fixture',
-    flows: [
-      flow('save-order', 'Save the order', `${url}/checkout`, 'Click Save order'),
-      flow('track-shipment', 'Track the shipment', `${url}/checkout`, 'Click Track shipment'),
-      flow('send-message', 'Send a message', `${url}/contact`, 'Click Send message'),
-      flow('apply-coupon', 'Apply a coupon', `${url}/checkout`, 'Click Apply coupon'),
-    ],
+    flows: only ? flows.filter(item => item.id === only) : flows,
   };
   const raw = await runPlan(plan, llm, {
     screenshotsDir: shots,
     headless: true,
     recordVideo: false,
-    stepTimeoutMs: strictOracles ? 8_000 : 2_000,
+    stepTimeoutMs: strictOracles || failOn5xx ? 8_000 : 2_000,
     strictOracles,
+    failOn5xx,
   });
   return triage(raw);
 }

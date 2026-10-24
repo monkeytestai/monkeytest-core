@@ -140,7 +140,7 @@ export async function applyPassedOracles(
   };
 }
 
-function isActionServerError(item: NetworkFailureEvidence): boolean {
+export function isActionServerError(item: NetworkFailureEvidence): boolean {
   if ((item.status ?? 0) < 500) return false;
   if (!item.resourceType) return true;
   return ACTION_RESOURCE_TYPES.has(item.resourceType);

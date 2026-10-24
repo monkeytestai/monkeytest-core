@@ -1,0 +1,21 @@
+# The Dockerfile copies an explicit allow-list. These rules keep secrets,
+# install trees, and local run output out of the build context anyway.
+
+.git
+.github
+.monkeytest
+node_modules
+dist
+docs
+test
+coverage
+e2e-artifacts
+*.log
+*.tgz
+.tsbuildinfo
+.DS_Store
+
+# Never send environment files to the daemon.
+.env
+.env.*
+!.env.example

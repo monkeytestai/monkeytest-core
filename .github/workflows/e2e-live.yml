@@ -67,8 +67,8 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$LIVE_SECRET_NAME" = "GEMINI_API_KEY" ] && [ "${{ github.event_name }}" != "push" ]; then
-            echo "GEMINI_API_KEY is required for a manual or scheduled live run." >&2
+          if [ "$LIVE_SECRET_NAME" = "OPENAI_API_KEY" ] && [ "${{ github.event_name }}" != "push" ]; then
+            echo "OPENAI_API_KEY is required for a manual or scheduled live run." >&2
             exit 1
           fi
           echo "skip=true" >> "$GITHUB_OUTPUT"

@@ -72,8 +72,8 @@ Add repository secrets under Settings → Secrets and variables → Actions:
 
 | Secret | Role |
 | --- | --- |
-| `GEMINI_API_KEY` | Default live run, model `gemini-flash-lite-latest`. A manual or scheduled run fails when this secret is missing. A push to `main` skips the Gemini leg instead, so the branch stays green before the secret exists. |
-| `OPENAI_API_KEY` | Optional matrix leg, model `gpt-4o-mini`. Skipped when the secret is empty. |
+| `GEMINI_API_KEY` | Optional matrix leg, model `gemini-flash-lite-latest`. Skipped when the secret is empty. |
+| `OPENAI_API_KEY` | Required for a manual or scheduled live run, model `gpt-4o-mini`. The job fails when this secret is missing. A push to `main` skips the OpenAI leg instead, so the branch stays green before the secret exists. |
 | `ANTHROPIC_API_KEY` | Optional matrix leg, model `claude-haiku-4-5`. Skipped when the secret is empty. |
 
 The live job crawls at most 3 pages and 4 flows, times out after 15 minutes, and uploads the run report and screenshots when it fails.

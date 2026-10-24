@@ -89,6 +89,21 @@ export interface MonkeyLLMConfig {
 /* ── SiteMap (output of Explorer) ─────────────────────────────────────── */
 
 /**
+ * One control inside a scraped form. Every property is optional because the
+ * DOM may only expose some of them. Hosts that only read `SiteMapForm.fields`
+ * can ignore this.
+ */
+export interface SiteMapFormInput {
+  /** `name` attribute, when the control has one. */
+  name?: string;
+  /** Associated label, `aria-label`, or wrapping `<label>` text. */
+  label?: string;
+  placeholder?: string;
+  /** Input type, or `textarea` / `select` when the control has no type. */
+  type?: string;
+}
+
+/**
  * A `<form>` scraped from the DOM. Absent fields mean the crawler did not
  * see them. Hosts that do not know this type can ignore `SiteMapPage.forms`.
  */
@@ -97,7 +112,16 @@ export interface SiteMapForm {
   action: string;
   /** Lower-case method, usually `"get"` or `"post"`. */
   method?: string;
+  /**
+   * Flat field tokens, unchanged for existing readers: `name`, then
+   * placeholder, then type. Prefer `inputs` when choosing a locator.
+   */
   fields: string[];
+  /**
+   * Label, name, placeholder, and type for each entry in `fields`, when the
+   * crawler could read them. Omitted on older sitemaps. Additive.
+   */
+  inputs?: SiteMapFormInput[];
   /** Visible label of the submit control, when the form had one. */
   submitLabel?: string;
 }

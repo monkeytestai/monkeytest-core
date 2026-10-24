@@ -119,11 +119,47 @@ describe('planner public form flow', () => {
     expect(ensured.flows[0].startUrl).toBe(HELP);
   });
 
-  it('does not add a second form flow when one already submits that page', () => {
+  it('replaces a vague submit on the form page with the grounded contact action', () => {
     const existing = flow('ask-help', HELP, 'Fill email and submit the contact form');
     const ensured = ensurePublicFormFlow([existing, shop], siteMap, 2);
-    expect(ensured.injected).toBe(false);
-    expect(ensured.flows.map(item => item.id)).toEqual(['ask-help', 'browse-tees']);
+    expect(ensured.injected).toBe(true);
+    expect(ensured.flows.map(item => item.id)).toEqual(['public-form-submit', 'browse-tees']);
+    expect(ensured.flows[0].steps.map(step => step.action).join('\n')).toContain('/api/contact');
+  });
+
+  it('keeps a help-page read and drops a shop flow to reserve the form', () => {
+    const helpRead = flow('view-help-page', HELP, 'Read the help page');
+    const ensured = ensurePublicFormFlow([shop, helpRead], siteMap, 2);
+    expect(ensured.flows.map(item => item.id)).toEqual(['public-form-submit', 'view-help-page']);
+    expect(ensured.flows[0].startUrl).toBe(HELP);
+  });
+
+  it('quotes the crawled label and name when the sitemap recorded them', () => {
+    const withInputs: SiteMap = {
+      ...siteMap,
+      pages: siteMap.pages.map(page => page.url === HELP
+        ? {
+          ...page,
+          forms: [{
+            action: 'https://www.bananabeings.com/api/contact',
+            method: 'post',
+            fields: ['name', 'email', 'message'],
+            inputs: [
+              { name: 'name', label: 'Name', type: 'text' },
+              { name: 'email', label: 'Email', type: 'email' },
+              { name: 'message', label: 'What do you need?', type: 'textarea' },
+            ],
+            submitLabel: 'Send message',
+          }],
+        }
+        : page),
+    };
+    const ensured = ensurePublicFormFlow([shop], withInputs, 2);
+    const text = ensured.flows[0].steps.map(step => step.action).join('\n');
+    expect(text).toContain('Fill the "Email" field (name="email")');
+    expect(text).toContain('Fill the "What do you need?" field (name="message")');
+    expect(text).toContain('/api/contact');
+    expect(text).not.toContain('placeholder');
   });
 
   it('does not let a header search box replace a shop flow', () => {
@@ -157,6 +193,45 @@ describe('planner public form flow', () => {
     };
     const result = await plan(siteMap, llm, { maxFlows: 2 });
     expect(result.flows.some(item => item.startUrl === HELP && item.id === 'public-form-submit')).toBe(true);
+    expect(result.notes).toContain('public form');
+  });
+
+  it('keeps the contact action when a valid planner returns only shop flows', async () => {
+    const ids = [
+      'homepage-quick-add-ripe-top',
+      'men-shop-add-multiple-tops',
+      'men-crew-neck-filter-and-add',
+      'about-page-brand-information',
+      'browse-womens-apparel',
+      'read-footer',
+    ];
+    const llm: LLM = {
+      providerLabel: 'stub',
+      async generateJSON() {
+        return {
+          flows: ids.map((id, index) => ({
+            id,
+            name: `Shop ${id}`.slice(0, 80),
+            description: 'Add a product from the shop.',
+            kind: 'happy_path' as const,
+            startUrl: index === 3 ? 'https://www.bananabeings.com/about' : HOME,
+            steps: [{ action: 'Add a ripe top to the bag', expectation: 'The bag updates.' }],
+            expectation: 'A product can be added.',
+            severityIfFails: 'major' as const,
+          })),
+          notes: 'Shopping only.',
+        };
+      },
+    };
+    const result = await plan(siteMap, llm, { maxFlows: 6 });
+    const formFlow = result.flows.find(item => item.id === 'public-form-submit');
+    expect(formFlow?.startUrl).toBe(HELP);
+    const text = formFlow?.steps.map(step => step.action).join('\n') ?? '';
+    expect(text).toContain('/api/contact');
+    expect(text).toContain('email');
+    expect(text).toContain('Send message');
+    expect(result.flows).toHaveLength(6);
+    expect(result.flows.some(item => item.id === 'about-page-brand-information')).toBe(true);
     expect(result.notes).toContain('public form');
   });
 });

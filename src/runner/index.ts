@@ -44,6 +44,7 @@ import {
   captureLocator,
   directActionFromStep,
   executeAction,
+  groundFillAction,
   resolveAction,
   settleSPA,
   skeletonForLLM,
@@ -433,7 +434,8 @@ async function runFlow(
     let resolved: ResolvedAction;
     try {
       const skeleton = await skeletonForLLM(page);
-      resolved = directActionFromStep(step.action, skeleton) ?? await resolveAction(llm, flow, step, skeleton);
+      const drafted = directActionFromStep(step.action, skeleton) ?? await resolveAction(llm, flow, step, skeleton);
+      resolved = groundFillAction(drafted, skeleton);
     } catch (err) {
       // LLM couldn't propose an action. That's a planner/runner integration
       // problem, not a product bug — record it but don't poison the flow.

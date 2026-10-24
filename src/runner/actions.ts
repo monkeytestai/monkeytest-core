@@ -54,18 +54,10 @@ export function directActionFromStep(
   const fill = action.match(/\bfill(?:\s+in)?\s+the\s+["“]([^"”]+)["”]\s+field/i);
   if (fill) {
     const field = fill[1].trim();
-    const input = skeleton.inputs.find(item =>
-      [item.label, item.name, item.placeholder].some(value => (value || '').trim().toLowerCase() === field.toLowerCase()),
-    );
+    const nameHint = action.match(/\bname\s*=\s*["“']([^"”']+)["”']/i)?.[1]?.trim();
+    const input = (nameHint && findInput(skeleton.inputs, nameHint)) || findInput(skeleton.inputs, field);
     if (!input) return null;
-    const target = (input.label || input.name || input.placeholder || field).trim();
-    return {
-      tool: 'fill',
-      locator: input.label ? 'label' : input.placeholder ? 'placeholder' : 'label',
-      target,
-      value: sampleFieldValue(input),
-      rationale: `Field "${field}" is on the page.`,
-    };
+    return fillActionForInput(input, undefined, `Field "${field}" is on the page.`);
   }
 
   const quoted = action.match(/(?:click|press|tap)(?:ing)?\s+(?:the\s+)?["“]([^"”]+)["”]/i);
@@ -101,6 +93,103 @@ function matchesControl(skeleton: PageSkeletonForLLM, label: string): boolean {
 function findText(values: string[], label: string): string | undefined {
   const needle = label.trim().toLowerCase();
   return values.find(value => value.trim().toLowerCase() === needle);
+}
+
+/**
+ * A model often answers `placeholder:Email` for a box whose only identity is
+ * its label or `name`. Prefer those. Placeholder remains when it is all the
+ * page exposed.
+ */
+export function groundFillAction(
+  action: ResolvedAction,
+  skeleton: PageSkeletonForLLM,
+): ResolvedAction {
+  if (action.tool !== 'fill') return action;
+  if (action.locator === 'role' || action.locator === 'testid') return action;
+  const wanted = (action.target || '').trim();
+  if (!wanted) return action;
+  if (action.locator === 'css' && (inputByNameSelector(skeleton.inputs, wanted) || /[[\]#.=]/.test(wanted))) {
+    return action;
+  }
+
+  const placeholderOnly = action.locator === 'placeholder'
+    ? findInput(skeleton.inputs, wanted, 'placeholder')
+    : undefined;
+  if (placeholderOnly && !placeholderOnly.label && !placeholderOnly.name) return action;
+
+  const input = placeholderOnly || findInput(skeleton.inputs, wanted);
+  if (!input || (!input.label && !input.name)) return action;
+
+  const grounded = fillActionForInput(input, action.value, action.rationale);
+  if (action.locator === grounded.locator && action.target === grounded.target) return action;
+  const inventedPlaceholder = action.locator === 'placeholder';
+  const labelMiss = action.locator === 'label' && !(input.label && sameField(input.label, wanted) && action.target === input.label);
+  const bareCss = !action.locator || (action.locator === 'css' && !/[[\]#.=]/.test(wanted));
+  if (!inventedPlaceholder && !labelMiss && !bareCss) return action;
+  return {
+    ...action,
+    locator: grounded.locator,
+    target: grounded.target,
+    value: action.value ?? grounded.value,
+    rationale: grounded.rationale,
+  };
+}
+
+function fillActionForInput(
+  input: PageSkeletonForLLM['inputs'][number],
+  value: string | undefined,
+  rationale?: string,
+): ResolvedAction {
+  const sample = value ?? sampleFieldValue(input);
+  if (input.label) {
+    return {
+      tool: 'fill',
+      locator: 'label',
+      target: input.label,
+      value: sample,
+      rationale: rationale || `Label "${input.label}" is on the page.`,
+    };
+  }
+  if (input.name) {
+    return {
+      tool: 'fill',
+      locator: 'css',
+      target: nameSelector(input.name),
+      value: sample,
+      rationale: rationale || `Input name "${input.name}" is on the page.`,
+    };
+  }
+  return {
+    tool: 'fill',
+    locator: 'placeholder',
+    target: input.placeholder || '',
+    value: sample,
+    rationale: rationale || `Placeholder "${input.placeholder}" is on the page.`,
+  };
+}
+
+function findInput(
+  inputs: PageSkeletonForLLM['inputs'],
+  wanted: string,
+  only?: 'label' | 'name' | 'placeholder',
+): PageSkeletonForLLM['inputs'][number] | undefined {
+  const keys = only ? [only] : (['name', 'label', 'placeholder'] as const);
+  return inputs.find(input => keys.some(key => sameField(input[key], wanted)));
+}
+
+function inputByNameSelector(
+  inputs: PageSkeletonForLLM['inputs'],
+  target: string,
+): PageSkeletonForLLM['inputs'][number] | undefined {
+  return inputs.find(input => input.name && nameSelector(input.name) === target);
+}
+
+function sameField(value: string | undefined, wanted: string): boolean {
+  return Boolean(value && value.trim().toLowerCase() === wanted.trim().toLowerCase());
+}
+
+function nameSelector(name: string): string {
+  return `[name="${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
 }
 
 function sampleFieldValue(input: { label?: string; placeholder?: string; name?: string; type?: string }): string {
@@ -398,13 +487,42 @@ export async function skeletonForLLM(page: Page): Promise<PageSkeletonForLLM> {
       }))
       .filter(l => l.text);
 
+    function fieldLabel(el: Element): string {
+      const control = el as HTMLInputElement;
+      if (control.id) {
+        const byFor = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+        if (byFor) {
+          const text = txt(byFor);
+          if (text) return text.slice(0, 80);
+        }
+      }
+      const aria = control.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria.trim().replace(/\s+/g, ' ').slice(0, 80);
+      const labelledBy = control.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        const text = labelledBy.split(/\s+/).map(id => {
+          const node = document.getElementById(id);
+          return node ? txt(node) : '';
+        }).filter(Boolean).join(' ').trim();
+        if (text) return text.slice(0, 80);
+      }
+      const parent = control.closest('label');
+      if (parent) {
+        const clone = parent.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('input, textarea, select').forEach(node => node.remove());
+        const text = txt(clone);
+        if (text) return text.slice(0, 80);
+      }
+      return '';
+    }
+
     const inputs = Array.from(document.querySelectorAll('input, textarea, select'))
       .slice(0, 25)
       .map(el => {
         const i = el as HTMLInputElement;
-        const labelEl = i.id ? document.querySelector(`label[for="${CSS.escape(i.id)}"]`) : null;
+        const label = fieldLabel(i);
         return {
-          label: labelEl ? txt(labelEl) : undefined,
+          label: label || undefined,
           placeholder: i.placeholder || undefined,
           name: i.name || undefined,
           type: i.type || i.tagName.toLowerCase(),

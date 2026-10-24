@@ -87,6 +87,7 @@ export type {
   SiteMap,
   SiteMapPage,
   SiteMapForm,
+  SiteMapFormInput,
   SiteMapControl,
   SiteMapInteractive,
   TestPlan,

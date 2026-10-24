@@ -148,7 +148,7 @@ Per-call constraints:
   - ${includeAuth
       ? 'You MAY add at most one kind="auth_required" flow that reaches a login/OTP wall and then stops. Do not invent credentials. The runner will skip executing it.'
       : 'Do NOT include login, sign-in, sign-up, register, OTP, password-reset, or any flow that needs an account. Skip auth-gated pages. Fill the plan with public journeys only.'}
-  - If a crawled page lists a public form under "forms:", one of the flows MUST start on that page and submit that form when the flow budget is at least 1. Prefer a POST contact, help, support, or feedback form over a search box. Use only the scraped fields and submit label. Do not invent a form URL or a field the crawl did not list.
+  - If a crawled page lists a public form under "forms:", the engine reserves one flow that starts on that page and submits that form when the flow budget is at least 1, even if every other flow is a shopping journey. Prefer a POST contact, help, support, or feedback form over a search box. Use only the scraped fields and submit label. Do not invent a form URL or a field the crawl did not list. A flow that merely says "submit" on that page does not replace the reserved one.
   - Scraped "controls:" are real buttons and links. The engine also keeps grounded flows for an enabled button, a link whose target was not crawled, and a disabled button when the budget allows. Do not invent a control that is not listed.
 
 Reply with JSON:

@@ -18,10 +18,10 @@ What it does:
 
 - Launches Chromium via Playwright (headless by default).
 - Visits the start URL, waits for the SPA / DOM to settle.
-- For each visited page, extracts: `<title>`, visible text, salient interactive elements (forms, buttons, links, inputs, menus), in-domain outbound links.
+- For each visited page, extracts: `<title>`, visible text, salient interactive elements (forms, buttons, links, inputs, menus), same-site outbound links. `www` and the apex host are the same site, and so are `http` and `https`. Another subdomain, another host, or another explicit port is not.
 - Asks the **explorer LLM** to summarise the page in one short paragraph and tag whether it looks auth-gated.
 - Optionally screenshots every page to `screenshotsDir` (this becomes evidence for the report).
-- Follows in-domain links breadth-first up to `maxPages`, reserving a few of those slots for help, contact, support, and about links the crawl actually saw so a product grid cannot crowd them out. Scraped `<form>`s are stored on `SiteMapPage.forms`. Scraped buttons and links, including disabled controls, are stored on `SiteMapPage.controls`.
+- Follows same-site links breadth-first up to `maxPages`, reserving a few of those slots for help, contact, support, and about links the crawl actually saw so a product grid cannot crowd them out. A start URL that redirects from `http://example.com` to `https://www.example.com` still follows those links. The stored page URL is the one the browser landed on. Scraped `<form>`s are stored on `SiteMapPage.forms`. Scraped buttons and links, including disabled controls, are stored on `SiteMapPage.controls`.
 
 Output: a `SiteMap` with `pages[]`, `pendingUrls[]`, and `failedUrls[]`. Always returned, even if some pages fail — failures don't kill the run.
 
@@ -38,7 +38,7 @@ What it does:
 - Reads the model JSON leniently. A flow with no usable step is dropped. Invalid JSON or a schema failure does not discard the rest of the plan.
 - Strips flows that hit auth walls if `includeAuthFlows: false`.
 - If the sitemap contains a public form (POST contact/help preferred over a search box) and `maxFlows` allows it, reserves one submit flow whose URL, action, and fields come from the crawl. A valid plan that only contains shopping journeys still includes it. A model flow that merely says "submit" on that page does not take the slot. When the form was found on a help, contact, or support page, that flow is the help exploration. Model flows that only read such a page are kept ahead of shop flows.
-- Also keeps, within that same budget, one grounded flow each for an enabled non-submit button, a same-origin link whose target was not crawled, and a disabled non-submit button. The model is still asked for journeys. These flows are the floor, and they replace leftover model flows when `maxFlows` is full. No URL is invented.
+- Also keeps, within that same budget, one grounded flow each for an enabled non-submit button, a same-site link whose target was not crawled, and a disabled non-submit button. The link check matches `www` and `http`/`https` the same way the crawl does. The model is still asked for journeys. These flows are the floor, and they replace leftover model flows when `maxFlows` is full. No URL is invented.
 
 Output: a `TestPlan { flows: TestFlow[] }`. If the planner produces zero flows (e.g., the explorer found nothing useful), the engine short-circuits with `notes` explaining why.
 

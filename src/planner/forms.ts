@@ -12,7 +12,7 @@
  */
 
 import type { SiteMap, SiteMapForm, SiteMapPage, TestFlow } from '../types.js';
-import { canonicalPageUrl, isFormSurfaceLink, looksLikeAuthUrl } from '../explorer/queue.js';
+import { isFormSurfaceLink, looksLikeAuthUrl, sameCrawlPage } from '../explorer/queue.js';
 
 export interface RankedForm {
   page: SiteMapPage;
@@ -57,7 +57,7 @@ export function bestPublicForm(siteMap: SiteMap): RankedForm | undefined {
  * Callers still install the grounded flow; this only drops the duplicate.
  */
 export function flowCoversForm(flow: TestFlow, pageUrl: string): boolean {
-  if (canonicalPageUrl(flow.startUrl) !== canonicalPageUrl(pageUrl)) return false;
+  if (!sameCrawlPage(flow.startUrl, pageUrl)) return false;
   const text = flow.steps.map(step => step.action).join(' ').toLowerCase();
   return /\b(submit|send)\b/.test(text);
 }

@@ -5,7 +5,9 @@
  * `maxFlows` has room (or by replacing a leftover model flow):
  *
  *   1. one enabled button that is not that form's submit control
- *   2. one same-origin link whose target the crawl did not successfully open
+ *   2. one same-site link whose target the crawl did not successfully open.
+ *      `www` and the apex host match, and so do `http` and `https`. Another
+ *      host or explicit port does not.
  *   3. one disabled button that is not a form submit
  *
  * Deeper pages win over the start URL so a homepage full of nav links does
@@ -14,7 +16,7 @@
  */
 
 import type { SiteMap, SiteMapPage, TestFlow } from '../types.js';
-import { canonicalPageUrl, isFormSurfaceLink, looksLikeAuthUrl } from '../explorer/queue.js';
+import { isFormSurfaceLink, isSameCrawlSite, looksLikeAuthUrl, sameCrawlPage } from '../explorer/queue.js';
 import { isReservedFlowId } from './forms.js';
 
 const NAV_LABEL = /^(home|back|back home|back to home|menu|skip|skip to content|logo)$/i;
@@ -55,12 +57,10 @@ interface Candidate {
 }
 
 function faultCandidates(siteMap: SiteMap): Candidate[] {
-  const start = canonicalPageUrl(siteMap.startUrl);
-  const visited = new Set(siteMap.pages.map(page => canonicalPageUrl(page.url)));
   const pages = siteMap.pages.filter(page => !page.authGated && !looksLikeAuthUrl(page.url));
   const ordered = [
-    ...pages.filter(page => canonicalPageUrl(page.url) !== start),
-    ...pages.filter(page => canonicalPageUrl(page.url) === start),
+    ...pages.filter(page => !sameCrawlPage(page.url, siteMap.startUrl)),
+    ...pages.filter(page => sameCrawlPage(page.url, siteMap.startUrl)),
   ];
 
   const buttons: Candidate[] = [];
@@ -90,9 +90,10 @@ function faultCandidates(siteMap: SiteMap): Candidate[] {
 
       if (control.kind !== 'link') continue;
       if (NAV_LABEL.test(label)) continue;
-      if (!control.href || !sameOrigin(page.url, control.href)) continue;
-      if (looksLikeAuthUrl(control.href)) continue;
-      if (visited.has(canonicalPageUrl(control.href))) continue;
+      const href = control.href;
+      if (!href || !isSameCrawlSite(href, page.url)) continue;
+      if (looksLikeAuthUrl(href)) continue;
+      if (siteMap.pages.some(seen => sameCrawlPage(seen.url, href))) continue;
       seen.add(key);
       links.push(buildCandidate(page, label, 'link'));
     }
@@ -125,10 +126,9 @@ function buildCandidate(page: SiteMapPage, label: string, kind: 'button' | 'link
 }
 
 function alreadyCovers(flows: TestFlow[], pageUrl: string, label: string): boolean {
-  const page = canonicalPageUrl(pageUrl);
   const needle = label.toLowerCase();
   return flows.some(flow =>
-    canonicalPageUrl(flow.startUrl) === page
+    sameCrawlPage(flow.startUrl, pageUrl)
     && flow.steps.some(step => step.action.toLowerCase().includes(needle)),
   );
 }
@@ -147,10 +147,3 @@ function lastModelFlow(flows: TestFlow[]): number {
   return surfaceFallback;
 }
 
-function sameOrigin(pageUrl: string, href: string): boolean {
-  try {
-    return new URL(href, pageUrl).origin === new URL(pageUrl).origin;
-  } catch {
-    return false;
-  }
-}

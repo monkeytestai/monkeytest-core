@@ -18,6 +18,11 @@
  * budget before `/help` is visited. URLs that were never linked are not
  * invented.
  *
+ * Crawl scope is the site, not a single `URL.origin`. `http://shop.example/`
+ * and `https://www.shop.example/help` are the same site. Another host,
+ * another subdomain, or another explicit port is not. A redirect that stays
+ * on the site is recorded as the URL the browser landed on.
+ *
  * What the explorer is NOT:
  *   - It does not log in. Auth-gated flows are surfaced to the planner so
  *     they can be flagged as `auth_required` later.
@@ -34,12 +39,16 @@ import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapPage, SiteMapInteract
 import { type EventBus, noopBus } from '../events.js';
 import {
   canonicalPageUrl,
+  crawledPageUrl,
   enqueueLinks,
   FORM_SURFACE_PATH_SOURCE,
   FORM_SURFACE_TEXT_SOURCE,
   isFormSurfaceLink,
+  linksOnCrawlSite,
   pickNextCrawlUrl,
+  rememberVisited,
   selectOutboundLinks,
+  wasVisited,
   type CrawlQueueItem,
   type DiscoveredLink,
 } from './queue.js';
@@ -73,7 +82,6 @@ export async function explore(
   const maxPages    = opts.maxPages ?? 8;
   const timeout     = opts.pageTimeoutMs ?? 20_000;
   const headless    = opts.headless ?? true;
-  const startOrigin = new URL(startUrl).origin;
   const events      = opts.events ?? noopBus();
 
   const visited = new Set<string>();
@@ -115,14 +123,16 @@ export async function explore(
       });
       if (index < 0) break;
       const next = queue.splice(index, 1)[0];
-      if (!next || visited.has(next.url)) continue;
-      const url = next.url;
-      visited.add(url);
+      if (!next || wasVisited(visited, next.url)) continue;
+      const requestedUrl = next.url;
+      rememberVisited(visited, requestedUrl);
 
       const page = await context.newPage();
 
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        await page.goto(requestedUrl, { waitUntil: 'domcontentloaded', timeout });
+        const url = crawledPageUrl(requestedUrl, page.url(), startUrl);
+        rememberVisited(visited, url);
 
         // SPAs (CRA, Next dev, Vite) often keep a websocket open for HMR so
         // networkidle never settles. We give it a brief shot, then fall back
@@ -182,11 +192,7 @@ export async function explore(
 
         const forms = skeleton.forms.filter(form => form.action || form.fields.length > 0 || form.submitLabel);
         const controls = skeleton.controls.filter(control => control.label);
-        const outbound = selectOutboundLinks(
-          skeleton.links
-            .map(link => ({ url: canonicalPageUrl(link.url), text: link.text }))
-            .filter(link => belongsToOrigin(link.url, startOrigin)),
-        );
+        const outbound = selectOutboundLinks(linksOnCrawlSite(skeleton.links, startUrl));
 
         const sm: SiteMapPage = {
           url,
@@ -225,11 +231,11 @@ export async function explore(
 
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        failures.push({ url, reason });
+        failures.push({ url: requestedUrl, reason });
         events.emit({
           phase: 'explorer', type: 'explore.page_failed',
-          message: `Failed to load ${url}`,
-          data: { url, reason },
+          message: `Failed to load ${requestedUrl}`,
+          data: { url: requestedUrl, reason },
         });
       } finally {
         await page.close().catch(() => {});
@@ -568,18 +574,6 @@ function slugifyUrl(u: string): string {
     return raw.slice(0, 80) || 'page';
   } catch {
     return 'page';
-  }
-}
-
-function belongsToOrigin(href: string, origin: string): boolean {
-  try {
-    const u = new URL(href);
-    if (u.origin !== origin) return false;
-    // Skip mailto:, tel:, file downloads, anchors, common asset types
-    if (/\.(png|jpe?g|gif|svg|pdf|zip|ico|webp|avif|mp4|webm)(\?.*)?$/i.test(u.pathname)) return false;
-    return true;
-  } catch {
-    return false;
   }
 }
 

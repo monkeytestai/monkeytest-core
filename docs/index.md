@@ -45,7 +45,7 @@ features:
 </style>
 
 ::: info npm package coming
-`npm install @mtai/monkeytest-core` returns 404 as of October 2026. The [quick start](/guide/quick-start) clones the repo, builds it, and runs a smoke test with no API key. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
+`npm install @monkeytestai/monkeytest-core` returns 404 as of October 2026. The [quick start](/guide/quick-start) clones the repo, builds it, and runs a smoke test with no API key. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
 :::
 
 ## Why MonkeyTest Core?
@@ -55,7 +55,7 @@ Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by 
 It opens a real browser, crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and hands you back a structured report with screenshots, bug fingerprints, and a live event stream you can wire into your own dashboard.
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 

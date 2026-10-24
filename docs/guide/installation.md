@@ -25,35 +25,35 @@ node scripts/smoke.mjs
 
 ## npm (not available yet)
 
-The package name is `@mtai/monkeytest-core`. As of 23 Oct 2026, `npm view @mtai/monkeytest-core` returns **E404**. The same is true for pnpm, yarn, and bun: the registry has nothing to install.
+The package name is `@monkeytestai/monkeytest-core`. As of 23 Oct 2026, `npm view @monkeytestai/monkeytest-core` returns **E404**. The same is true for pnpm, yarn, and bun: the registry has nothing to install.
 
 When it is published, this is the install:
 
 ::: code-group
 
 ```bash [npm]
-npm install @mtai/monkeytest-core
+npm install @monkeytestai/monkeytest-core
 npx playwright install chromium
 ```
 
 ```bash [pnpm]
-pnpm add @mtai/monkeytest-core
+pnpm add @monkeytestai/monkeytest-core
 pnpm exec playwright install chromium
 ```
 
 ```bash [yarn]
-yarn add @mtai/monkeytest-core
+yarn add @monkeytestai/monkeytest-core
 yarn playwright install chromium
 ```
 
 ```bash [bun]
-bun add @mtai/monkeytest-core
+bun add @monkeytestai/monkeytest-core
 bunx playwright install chromium
 ```
 
 :::
 
-Publishing runs from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag. The workflow needs the `NPM_TOKEN` Actions secret (an npm automation token with publish access to `@mtai/*`). `publishConfig.access` is already `public`. Until that secret is set and a tag is pushed, use the clone above.
+Publishing runs from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag. The workflow needs the `NPM_TOKEN` Actions secret (an npm automation token with publish access to `@monkeytestai/*`). `publishConfig.access` is already `public`. Until that secret is set and a tag is pushed, use the clone above.
 
 The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary. The release workflow publishes with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
 

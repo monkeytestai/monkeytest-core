@@ -51,7 +51,7 @@ You **won't** see savings if you run once a day against a different URL each tim
 Every `LLM` instance exposes `lastUsage` after each call:
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig() });
 await monkey.executeAndTriage(url, { /* … */ });

@@ -2,7 +2,7 @@
 
 Clone the repo, build it, and run the smoke script. That path works today, with no API key and no npm package. A fresh machine spends most of the few minutes on `npm install` and the Chromium download. The smoke run itself is about two seconds.
 
-`@mtai/monkeytest-core` is the package name the project will publish. As of 23 Oct 2026 the registry returns **404** (`npm view @mtai/monkeytest-core`). The npm commands are written at the bottom so they are ready when a release exists. Until then, use the clone.
+`@monkeytestai/monkeytest-core` is the package name the project will publish. As of 23 Oct 2026 the registry returns **404** (`npm view @monkeytestai/monkeytest-core`). The npm commands are written at the bottom so they are ready when a release exists. Until then, use the clone.
 
 ## Prerequisites
 
@@ -174,20 +174,20 @@ node dist/cli.js diff prev latest
 When the package is on the registry, installing it replaces the clone for app code:
 
 ```bash
-npm install @mtai/monkeytest-core
+npm install @monkeytestai/monkeytest-core
 npx playwright install chromium
 export GEMINI_API_KEY="paste-your-key"
 npx monkeytest run https://example.com --max 2 --flows 1
 ```
 
-The same package name is what pnpm, yarn, and bun will use. Publishing is [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml): a `v*` tag, and the `NPM_TOKEN` repository secret. Until that secret exists and a tag is pushed, `npm install @mtai/monkeytest-core` cannot succeed.
+The same package name is what pnpm, yarn, and bun will use. Publishing is [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml): a `v*` tag, and the `NPM_TOKEN` repository secret. Until that secret exists and a tag is pushed, `npm install @monkeytestai/monkeytest-core` cannot succeed.
 
 ## Library sketch
 
 This is the call most of the other pages show. The import name works after the package is installed. Inside this clone, import `./src/index.ts` from a `tsx` script, or `./dist/index.js` from plain Node.
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 

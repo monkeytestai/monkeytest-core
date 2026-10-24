@@ -3,7 +3,7 @@
 ## Supported versions
 
 We aim to patch security issues in the latest **minor** release line of
-`@mtai/monkeytest-core`. Older majors may not receive fixes.
+`@monkeytestai/monkeytest-core`. Older majors may not receive fixes.
 
 | Version | Supported          |
 | ------- | ------------------ |

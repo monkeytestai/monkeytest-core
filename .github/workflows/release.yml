@@ -9,7 +9,7 @@ name: Release to npm
 #
 # Required GitHub repository setup:
 #   - Settings → Secrets and variables → Actions → NPM_TOKEN
-#     (npm "Automation" token with publish access to @mtai/*)
+#     (npm "Automation" token with publish access to @monkeytestai/*)
 #   - npm package access set to "publishConfig.access: public" (already
 #     in package.json so Restricted scopes don't block publish).
 
@@ -85,7 +85,7 @@ jobs:
             **Install:**
 
             ```bash
-            npm install @mtai/monkeytest-core@${{ github.event.inputs.tag || github.ref_name }}
+            npm install @monkeytestai/monkeytest-core@${{ github.event.inputs.tag || github.ref_name }}
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

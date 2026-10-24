@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Package name is `@monkeytestai/monkeytest-core` (version stays `0.4.0`). It was `@mtai/monkeytest-core`; that npm scope is taken. Imports, install docs, CI, and the Docker image use the new name. Runtime behavior and the AGPL-3.0 license are unchanged.
 - **SaaS migration.** `new Monkey()` now defaults `strictOracles` and `failOn5xx` to **on**. A page error, a document HTTP 404, a disabled control a step tries to use, and a same-origin HTTP ≥500 (document, xhr, or fetch) become a failed step and a blocking bug. Bug counts and `flowsFailed` will rise. To keep the previous counts, pass `strictOracles: false` and `failOn5xx: false` on the constructor, or the same fields on one `run` / `replay` / `verify` call. `www` and the apex host still match. Other ports, third-party hosts, and image/font responses stay evidence only.
 - `runPlan`, `replayTraces`, `verifyBugs`, and `triage(run)` still leave those switches off unless the caller passes them, so triaging a run you already built does not rewrite it. `Monkey` passes the constructor values (now on) into the run and into `triage`. `RunResult` fields are unchanged.
 - The planner keeps grounded flows, within `maxFlows`, for a crawled public form, one enabled non-submit button, one same-origin link whose target was not crawled, and one disabled non-submit button. Labels and URLs come from the crawl (`SiteMapPage.controls`, optional). Leftover model flows are the ones replaced when the budget is full.

@@ -51,17 +51,17 @@ jobs:
             test ! -d /opt/monkeytest-core/node_modules/vitepress
             test ! -d /root/.cache/ms-playwright
             node --input-type=module -e "import { Monkey } from \"/opt/monkeytest-core/dist/index.js\"; if (typeof Monkey !== \"function\") process.exit(1);"
-            node --input-type=module -e "import { readFileSync } from \"node:fs\"; const p = JSON.parse(readFileSync(\"/opt/monkeytest-core/package.json\", \"utf8\")); if (p.scripts && p.scripts.prepack) { console.error(\"prepack must be stripped\"); process.exit(1); } if (p.name !== \"@mtai/monkeytest-core\") process.exit(1); console.log(p.name, p.version);"
+            node --input-type=module -e "import { readFileSync } from \"node:fs\"; const p = JSON.parse(readFileSync(\"/opt/monkeytest-core/package.json\", \"utf8\")); if (p.scripts && p.scripts.prepack) { console.error(\"prepack must be stripped\"); process.exit(1); } if (p.name !== \"@monkeytestai/monkeytest-core\") process.exit(1); console.log(p.name, p.version);"
             mkdir -p /tmp/consumer
             cd /tmp/consumer
             npm init -y >/dev/null
-            npm pkg set dependencies.@mtai/monkeytest-core=file:/opt/monkeytest-core
+            npm pkg set dependencies.@monkeytestai/monkeytest-core=file:/opt/monkeytest-core
             npm install --omit=dev --no-audit --no-fund
-            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@mtai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@mtai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/opt/monkeytest-core/\")) { console.error(pw); process.exit(1); } console.log(\"file-link\", Monkey.name);"
+            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/opt/monkeytest-core/\")) { console.error(pw); process.exit(1); } console.log(\"file-link\", Monkey.name);"
             mkdir -p /tmp/pack /tmp/app
             npm pack --ignore-scripts --pack-destination /tmp/pack /opt/monkeytest-core
             cd /tmp/app
             npm init -y >/dev/null
-            npm install --omit=dev --no-audit --no-fund /tmp/pack/mtai-monkeytest-core-*.tgz
-            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@mtai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@mtai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/tmp/app/\")) { console.error(pw); process.exit(1); } console.log(\"tarball-install\", Monkey.name);"
+            npm install --omit=dev --no-audit --no-fund /tmp/pack/monkeytestai-monkeytest-core-*.tgz
+            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/tmp/app/\")) { console.error(pw); process.exit(1); } console.log(\"tarball-install\", Monkey.name);"
           '

@@ -80,7 +80,7 @@ export interface AutoLLMOptions {
  * Build a `MonkeyLLMConfig` from a single quality preset and the env.
  * This is the easiest way to get a sensible setup in two lines.
  *
- *     import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+ *     import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
  *     const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
  *
  * Throws if no provider can be detected.

@@ -100,7 +100,7 @@ runner:   36 × (1500 × $0.59  + 120  × $0.79)  / 1e6 ≈ $0.035
 For a small team running on every PR:
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({
   llm: autoLLMConfig({

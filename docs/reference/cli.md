@@ -1,6 +1,6 @@
 # CLI reference
 
-The `monkeytest` binary is `dist/cli.js` in this repository. Until `@mtai/monkeytest-core` is on npm, run it from a clone:
+The `monkeytest` binary is `dist/cli.js` in this repository. Until `@monkeytestai/monkeytest-core` is on npm, run it from a clone:
 
 ```bash
 git clone https://github.com/monkeytestai/monkeytest-core.git
@@ -9,7 +9,7 @@ npm install && npm run build
 node dist/cli.js --help
 ```
 
-After the package is published, `npm install -g @mtai/monkeytest-core` and `npx monkeytest` use the same binary. The registry returned 404 for that name as of 23 Oct 2026.
+After the package is published, `npm install -g @monkeytestai/monkeytest-core` and `npx monkeytest` use the same binary. The registry returned 404 for that name as of 23 Oct 2026.
 
 All commands write to `./.monkeytest/` by default (override with `--dir`).
 

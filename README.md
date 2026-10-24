@@ -93,6 +93,15 @@ Screenshots are written to `.monkeytest/shots/`.
 
 `npm install @mtai/monkeytest-core` returns 404 as of October 2026. When the package is published, that command plus `npx playwright install chromium` is the install. Publishing needs the `NPM_TOKEN` Actions secret and a `v*` tag ([release workflow](./.github/workflows/release.yml)). Until then, use the clone.
 
+## Docker
+
+A multi-stage image compiles this package and leaves it at `/opt/monkeytest-core` (`dist/`, `package.json`, and production dependencies) so another image can copy it, or so a sibling checkout can satisfy `file:../monkeytest-core`. API keys and Playwright browsers are not in the image. Build, the `mtaiserver` layout, and the pinned hosted SHA are in [DOCKER.md](./DOCKER.md).
+
+```bash
+docker build -t monkeytest-core:local .
+docker run --rm monkeytest-core:local --help
+```
+
 ## Why MonkeyTest Core?
 
 - **Closed loop, not just discovery.** Stable JSON plans + bug fingerprints + a real `rerun` and `diff` — built in, not bolted on.

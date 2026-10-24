@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-stage `Dockerfile` (Node 22, `bookworm-slim`) and [DOCKER.md](./DOCKER.md). `npm ci` and `npm run build` produce `/opt/monkeytest-core` (`dist/`, `package.json`, license files, production dependencies) for a `file:` install or `COPY --from`. Playwright browsers are not downloaded. Engine audit behavior is unchanged.
 - `--fail-on-5xx` (CLI default on, `--no-fail-on-5xx` opts out) fails a passed or skipped step that observed a same-origin HTTP ≥500 on a document, xhr, or fetch, and the triager files it as a critical bug. `new Monkey()` now defaults this **on** as well. Pass `failOn5xx: false` to opt out. `www` and the apex host match. Other ports, third-party hosts, and image/font responses stay evidence only.
 - The crawler reserves a few `maxPages` slots for help, contact, support, about, and other form-style links it actually saw, and keeps those links even when they sit past the ordinary link cap. `SiteMapPage.forms` records scraped forms (optional; existing readers can ignore it).
 - When the crawl contains a public form and `maxFlows` is at least 1, the planner keeps a form-submit flow grounded in that page's URL, fields, and submit label. A header search box does not take that slot. The model is asked for the same flow; the deterministic pass is the floor.

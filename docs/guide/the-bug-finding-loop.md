@@ -67,7 +67,7 @@ Re-running the **stored plan** removes that ambiguity. Same flows, same steps, s
 The CLI is a thin wrapper around two engine methods.
 
 ```ts
-import { Monkey, autoLLMConfig, savePlan, loadPlan, saveRun, loadRun, diffRuns } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig, savePlan, loadPlan, saveRun, loadRun, diffRuns } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
@@ -119,7 +119,7 @@ Everything above also exists in the [MonkeyTest SaaS](https://monkeytest.ai). On
 - **"vs previous run"** card shows the same `new / fixed / persisting / regressed` counts the CLI prints, with a click-through to bugs by status.
 - **"Run history"** timeline lets you walk back through every re-run of the original.
 
-The library is the source of truth. The SaaS is a hosted runner with a UI on top of the same engine you clone and build (or install from npm, once `@mtai/monkeytest-core` is published).
+The library is the source of truth. The SaaS is a hosted runner with a UI on top of the same engine you clone and build (or install from npm, once `@monkeytestai/monkeytest-core` is published).
 
 ## What it isn't
 

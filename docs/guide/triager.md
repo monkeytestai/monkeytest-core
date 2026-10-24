@@ -20,7 +20,7 @@ You always get the rule-based output. The LLM polish only **improves** copy; it 
 Set `triager` on `MonkeyConfig.llm`:
 
 ```ts
-import { Monkey } from '@mtai/monkeytest-core';
+import { Monkey } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({
   llm: {
@@ -82,7 +82,7 @@ For a typical 5-bug run, even Sonnet costs less than 3 cents. Haiku and gpt-4o-m
 If you want to drive the triager outside the `Monkey` class (e.g. you stored a `RunResult` and want to polish it later):
 
 ```ts
-import { triagePolished, createLLM } from '@mtai/monkeytest-core';
+import { triagePolished, createLLM } from '@monkeytestai/monkeytest-core';
 
 const polished = await triagePolished(rawRun, {
   llm: createLLM({ provider: 'openai', model: 'gpt-4o-mini' }),

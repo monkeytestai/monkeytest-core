@@ -1,5 +1,5 @@
 /**
- * Public entry point for @mtai/monkeytest-core.
+ * Public entry point for @monkeytestai/monkeytest-core.
  *
  * Consumers should import from here, not from internal subpaths, so we have
  * room to refactor the internals.

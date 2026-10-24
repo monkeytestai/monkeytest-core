@@ -1,12 +1,14 @@
 # Docker
 
-Build a slim image of `@mtai/monkeytest-core` from a clean clone. The image runs `npm ci` and `npm run build` on Node 22 (the default satisfies `engines.node` of `>=20`) and leaves an installable package at `/opt/monkeytest-core`.
+Build a slim image of `@monkeytestai/monkeytest-core` from a clean clone. The image runs `npm ci` and `npm run build` on Node 22 (the default satisfies `engines.node` of `>=20`) and leaves an installable package at `/opt/monkeytest-core`.
 
-That directory is what `mtaiserver` consumes. On `feature/v2` its dependency is:
+That directory is what `mtaiserver` consumes. Depend on this package name; the path stays the sibling checkout:
 
 ```json
-"@mtai/monkeytest-core": "file:../monkeytest-core"
+"@monkeytestai/monkeytest-core": "file:../monkeytest-core"
 ```
+
+The `file:` directory does not move. Rename the dependency key in the consumer `package.json` (including a future npm dependency). A droplet can keep `file:../monkeytest-core` until that key is updated.
 
 Nothing in this image is a secret. Do not pass API keys as `--build-arg` values or bake a `.env` into the context. `.dockerignore` already drops `.env` and `.env.*`. Provider keys belong in the process that starts a run.
 

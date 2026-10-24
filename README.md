@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@mtai/monkeytest-core"><img src="https://img.shields.io/badge/npm-not%20yet%20published-lightgrey" alt="npm: not yet published" /></a>
+  <a href="https://www.npmjs.com/package/@monkeytestai/monkeytest-core"><img src="https://img.shields.io/badge/npm-not%20yet%20published-lightgrey" alt="npm: not yet published" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+" /></a>
   <a href="https://docs.monkeytest.ai"><img src="https://img.shields.io/badge/docs-docs.monkeytest.ai-7c3aed" alt="Documentation" /></a>
   <a href="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml"><img src="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
@@ -46,7 +46,7 @@ node dist/cli.js diff prev latest          # 2 fixed, 0 new, 1 still broken, 0 r
 Or programmatically — same primitives:
 
 ```ts
-import { Monkey, autoLLMConfig, savePlan, loadPlan, diffRuns, saveRun } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig, savePlan, loadPlan, diffRuns, saveRun } from '@monkeytestai/monkeytest-core';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
@@ -68,7 +68,7 @@ const diff = diffRuns(a, b);
 console.log(`${diff.stats.fixed} fixed, ${diff.stats.regressed} regressed`);
 ```
 
-No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves once `@mtai/monkeytest-core` is installed. That package is not on npm yet — start with the clone below, and see [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
+No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves once `@monkeytestai/monkeytest-core` is installed. That package is not on npm yet — start with the clone below, and see [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
 
 ## Try it in 60 seconds
 
@@ -91,7 +91,7 @@ Screenshots are written to `.monkeytest/shots/`.
 
 ### npm (not available yet)
 
-`npm install @mtai/monkeytest-core` returns 404 as of October 2026. When the package is published, that command plus `npx playwright install chromium` is the install. Publishing needs the `NPM_TOKEN` Actions secret and a `v*` tag ([release workflow](./.github/workflows/release.yml)). Until then, use the clone.
+`npm install @monkeytestai/monkeytest-core` returns 404 as of October 2026. When the package is published, that command plus `npx playwright install chromium` is the install. Publishing needs the `NPM_TOKEN` Actions secret and a `v*` tag ([release workflow](./.github/workflows/release.yml)). Until then, use the clone.
 
 ## Docker
 
@@ -115,7 +115,7 @@ docker run --rm monkeytest-core:local --help
 ## A comprehensive example
 
 ```ts
-import { Monkey, EventBus } from '@mtai/monkeytest-core';
+import { Monkey, EventBus } from '@monkeytestai/monkeytest-core';
 
 const events = new EventBus();
 events.on(e => console.log(`[${e.phase}] ${e.type}: ${e.message}`));

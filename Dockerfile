@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Reproducible build of @mtai/monkeytest-core.
+# Reproducible build of @monkeytestai/monkeytest-core.
 #
 #   docker build -t monkeytest-core:local .
 #
@@ -43,8 +43,8 @@ RUN mkdir -p /tmp/pack \
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 ARG SOURCE_COMMIT=
-LABEL org.opencontainers.image.title="@mtai/monkeytest-core" \
-      org.opencontainers.image.description="Compiled @mtai/monkeytest-core package for file: installs and image copies." \
+LABEL org.opencontainers.image.title="@monkeytestai/monkeytest-core" \
+      org.opencontainers.image.description="Compiled @monkeytestai/monkeytest-core package for file: installs and image copies." \
       org.opencontainers.image.source="https://github.com/monkeytestai/monkeytest-core" \
       org.opencontainers.image.url="https://docs.monkeytest.ai" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
@@ -65,7 +65,7 @@ COPY --from=build /tmp/pack/ /tmp/pack/
 # in the build stage. --ignore-scripts on `npm pack` skipped `prepack`
 # (which would have compiled a second time); the script is still in the
 # packed manifest until we delete it below.
-RUN tar -xzf /tmp/pack/mtai-monkeytest-core-*.tgz -C /opt/monkeytest-core --strip-components=1 \
+RUN tar -xzf /tmp/pack/monkeytestai-monkeytest-core-*.tgz -C /opt/monkeytest-core --strip-components=1 \
  && rm -rf /tmp/pack \
  && npm ci --omit=dev --no-audit --no-fund \
  && npm pkg delete scripts.prepack \

@@ -95,7 +95,7 @@ Nothing is "all or nothing". You always get evidence.
 Every phase emits structured `LiveEvent`s through an optional `EventBus`. This is what powers MonkeyTest Cloud's live-activity panel and is documented in [Live events](/guide/live-events).
 
 ```ts
-import { Monkey, EventBus } from '@mtai/monkeytest-core';
+import { Monkey, EventBus } from '@monkeytestai/monkeytest-core';
 
 const events = new EventBus();
 events.on(e => console.log(`[${e.phase}] ${e.type}: ${e.message}`));

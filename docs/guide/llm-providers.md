@@ -194,7 +194,7 @@ This costs roughly the same as "Gemini Flash everywhere" but produces noticeably
 Don't want to think about any of this for your first run?
 
 ```ts
-import { Monkey, autoLLMConfig } from '@mtai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
 
 new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 ```

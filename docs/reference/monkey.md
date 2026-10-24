@@ -19,6 +19,12 @@ const monkey = new Monkey({
 
 If `runner` is omitted, the planner LLM is reused for runner calls. See [LLM providers](/guide/llm-providers) and [Configuration](/guide/configuration).
 
+### Hard-fault defaults
+
+`strictOracles` and `failOn5xx` both default to **on**. A page error, a document HTTP 404, a disabled control the step uses, and a same-origin HTTP ≥500 become blocking bugs. Pass either flag as `false` to restore the previous, quieter bug counts. One call can override the constructor with `run.strictOracles` or `run.failOn5xx`.
+
+`runPlan`, `replayTraces`, and `triage(run)` do not turn those switches on by themselves. `executeAndTriage` does, because it goes through `Monkey`.
+
 ### Convenience constructor
 
 ```ts

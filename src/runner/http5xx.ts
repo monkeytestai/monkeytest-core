@@ -6,14 +6,14 @@
  *
  *   - a step the runner marked `skipped` (soft locator miss) kept its 5xx
  *     evidence and the triager ignored it
- *   - library callers leave strict oracles off, so a passed step with a
- *     same-origin 500 never becomes a bug
+ *   - a passed or skipped step can still carry a same-origin 500 when the
+ *     runner was not asked to fail on it
  *
- * This pass is opt-in (`failOn5xx`). The CLI turns it on. `new Monkey(...)`
- * leaves it off so existing hosts keep the same bug counts. Image, font, and
- * other non-action responses stay evidence only. Third-party 5xx responses
- * stay evidence only. `www` and the apex host are treated as the same site;
- * the port is not ignored.
+ * This pass runs when `failOn5xx` is set. The CLI and `new Monkey()` turn it
+ * on. Pass `failOn5xx: false` to opt out. A direct `triage(run)` does not.
+ * Image, font, and other non-action responses stay evidence only. Third-party
+ * 5xx responses stay evidence only. `www` and the apex host are treated as
+ * the same site; the port is not ignored.
  */
 
 import type { ActionOutcome } from './actions.js';

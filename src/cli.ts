@@ -286,7 +286,10 @@ Crawl <url>, summarise pages, generate a TestPlan. Writes plan.json + shots/.`,
 Run the full pipeline (explore + plan + run + triage). Writes plan.json,
 runs/<id>.json, and screenshots. Exits with code 1 if blocking bugs found.
 Same-origin HTTP ≥500 responses fail the step (--no-fail-on-5xx opts out).
-The crawl reserves room for help/contact/about pages under a small --max.`,
+The crawl reserves room for help/contact/about pages under a small --max.
+A crawled form, an enabled button, a link to a page the crawl did not open,
+and a disabled button each keep a grounded flow when --flows has room.
+Exits 3 when the explorer loads no pages.`,
     rerun: `monkeytest rerun [<runId>] [--heal] [--dir .monkeytest]
 Replay the action trace stored on a run. Does not call the LLM.
 --heal re-resolves a step whose locator no longer matches and marks it healed.
@@ -443,6 +446,10 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
   if (blocking.length){
     console.error(`\n${tty(`✗ ${blocking.length} blocking bug${blocking.length === 1 ? '' : 's'} found.`, 'red')}`);
     process.exit(1);
+  }
+  if (siteMap.pages.length === 0) {
+    console.error(`\n${tty('✗ Explorer loaded no pages, so this run cannot judge the site.', 'red')}`);
+    process.exit(3);
   }
 }
 

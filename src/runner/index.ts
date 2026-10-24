@@ -3,10 +3,10 @@
  *
  * Executes a TestPlan in a real Chromium browser, step by step. For each step:
  *
- *   1. Ask the LLM to translate the natural-language instruction into a
- *      concrete tool call: { tool, target, value? }. The DOM skeleton of the
- *      *current* page is given as context so the model can pick a real
- *      selector (or fall back to text-based locators).
+ *   1. If the step quotes a label that is already on the page (`Click "Save
+ *      order"`, `Fill the "email" field`), run that control directly. Otherwise
+ *      ask the LLM to translate the instruction into a tool call. The DOM
+ *      skeleton of the current page is the only source of targets.
  *   2. Execute the tool. Catch every error so a single broken step never
  *      crashes the whole run.
  *   3. Take a screenshot AFTER the attempt (failed steps are screenshotted
@@ -42,6 +42,7 @@ import type {
 import { type EventBus, noopBus } from '../events.js';
 import {
   captureLocator,
+  directActionFromStep,
   executeAction,
   resolveAction,
   settleSPA,
@@ -432,7 +433,7 @@ async function runFlow(
     let resolved: ResolvedAction;
     try {
       const skeleton = await skeletonForLLM(page);
-      resolved = await resolveAction(llm, flow, step, skeleton);
+      resolved = directActionFromStep(step.action, skeleton) ?? await resolveAction(llm, flow, step, skeleton);
     } catch (err) {
       // LLM couldn't propose an action. That's a planner/runner integration
       // problem, not a product bug — record it but don't poison the flow.

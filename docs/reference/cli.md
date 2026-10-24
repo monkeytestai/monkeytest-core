@@ -115,9 +115,9 @@ Print the engine version.
 | `--base-url <url>`      | —              | Required for `openai_compatible` (Ollama, vLLM, OpenRouter, …)        |
 | `--quality <preset>`    | `balanced`     | `cheap` \| `balanced` \| `smart` (used by `autoLLMConfig`)            |
 | `-m, --max <n>`         | `8`            | Max pages to crawl (`run`, `explore`). A few slots are reserved for help, contact, support, and about links the crawl actually saw. |
-| `--flows <n>`           | `6`            | Max flows to plan. A crawled public form keeps one submit flow when this is at least 1. |
-| `--fail-on-5xx`         | on             | Fail a step that saw a same-origin HTTP ≥500 (document, xhr, or fetch) and report a blocking bug. |
-| `--no-fail-on-5xx`      |                | Leave those 5xx responses as evidence on the step. Library callers (`new Monkey`) already default this off. |
+| `--flows <n>`           | `6`            | Max flows to plan. A crawled public form, one enabled button, one link to a page that was not crawled, and one disabled button each keep a grounded flow when the budget allows. |
+| `--fail-on-5xx`         | on             | Fail a step that saw a same-origin HTTP ≥500 (document, xhr, or fetch) and report a blocking bug. `new Monkey()` defaults this on too. |
+| `--no-fail-on-5xx`      |                | Leave those 5xx responses as evidence on the step. Library callers pass `failOn5xx: false`. |
 | `--no-headless`         | headless       | Show the browser window                                               |
 | `--label <text>`        | —              | Free-form label saved on the plan/run                                 |
 | `--json`                | text           | Machine-readable output (`run`, `diff`, `report`)                     |
@@ -142,7 +142,7 @@ Print the engine version.
 | `0`  | Success / no blocking bugs                      |
 | `1`  | Blocking bugs found (or `diff` regressed)       |
 | `2`  | Bad arguments / setup error (no API key, etc.)  |
-| `3`  | Engine / runtime error                          |
+| `3`  | Engine / runtime error. `run` also uses this when the explorer visits zero pages. |
 
 ## On-disk format
 

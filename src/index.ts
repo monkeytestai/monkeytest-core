@@ -5,7 +5,7 @@
  * room to refactor the internals.
  */
 
-export { Monkey } from './monkey.js';
+export { Monkey, resolveMonkeyOracles } from './monkey.js';
 export type {
   MonkeyConfig,
   ExploreAndPlanOptions,
@@ -87,6 +87,7 @@ export type {
   SiteMap,
   SiteMapPage,
   SiteMapForm,
+  SiteMapControl,
   SiteMapInteractive,
   TestPlan,
   TestFlow,

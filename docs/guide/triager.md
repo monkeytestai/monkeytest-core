@@ -13,7 +13,7 @@ For better-reading bug copy you can opt into an **LLM polish pass** that rewrite
 
 You always get the rule-based output. The LLM polish only **improves** copy; it never invents bugs and it never overrides severity or the fingerprint.
 
-Pass `failOn5xx: true` to `triage` / `triagePolished` (or set it on `Monkey`) when a same-origin HTTP ≥500 should become a failed step even if the runner left that step `passed` or `skipped`. The CLI does this by default. The default for a library call stays off.
+`new Monkey()` passes `failOn5xx: true` into `triage` / `triagePolished`, so a same-origin HTTP ≥500 becomes a failed step even if the runner left that step `passed` or `skipped`. Pass `failOn5xx: false` on `Monkey` to opt out. A direct `triage(run)` call still leaves the run unchanged unless you pass `{ failOn5xx: true }`.
 
 ## Enable it
 

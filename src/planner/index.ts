@@ -16,6 +16,7 @@ import type { LLM } from '../llm/index.js';
 import type { SiteMap, TestPlan, TestFlow } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import { ensurePublicFormFlow } from './forms.js';
+import { ensureFaultSurfaceFlows } from './faults.js';
 
 export interface PlannerOptions {
   /** Soft cap on flows per plan. Default 6. */
@@ -141,6 +142,10 @@ ${siteMap.pages.map(p => `
       ${p.forms?.length
         ? p.forms.map(f => `${(f.method || 'get').toUpperCase()} ${f.action || '(no action)'} fields=[${f.fields.join(', ') || 'none'}] submit="${f.submitLabel || ''}"`).join(' | ')
         : '(none)'}
+    controls:
+      ${p.controls?.length
+        ? p.controls.slice(0, 12).map(c => `${c.kind}${c.disabled ? ' disabled' : ''} "${c.label}"${c.href ? ` -> ${c.href}` : ''}`).join(', ')
+        : '(none)'}
 `).join('')}`;
 
   const prompt = `Now produce the test plan.
@@ -152,6 +157,7 @@ Per-call constraints:
       ? 'You MAY add at most one kind="auth_required" flow that reaches a login/OTP wall and then stops. Do not invent credentials. The runner will skip executing it.'
       : 'Do NOT include login, sign-in, sign-up, register, OTP, password-reset, or any flow that needs an account. Skip auth-gated pages. Fill the plan with public journeys only.'}
   - If a crawled page lists a public form under "forms:", one of the flows MUST start on that page and submit that form when the flow budget is at least 1. Prefer a POST contact, help, support, or feedback form over a search box. Use only the scraped fields and submit label. Do not invent a form URL or a field the crawl did not list.
+  - Scraped "controls:" are real buttons and links. The engine also keeps grounded flows for an enabled button, a link whose target was not crawled, and a disabled button when the budget allows. Do not invent a control that is not listed.
 
 Reply with JSON:
 {
@@ -190,10 +196,14 @@ Reply with JSON:
   // one submit flow when maxFlows allows, even if the model only planned shop
   // journeys. The flow's URL and fields come from the sitemap.
   const ensured = ensurePublicFormFlow(flows, siteMap, maxFlows);
-  flows = ensured.flows;
+  const faults = ensureFaultSurfaceFlows(ensured.flows, siteMap, maxFlows);
+  flows = faults.flows;
   const notes = [
     result.notes,
     ensured.injected ? 'Added a form-submit flow for a public form found in the crawl.' : '',
+    faults.added.length
+      ? `Added fault-surface flows for controls the crawl saw (${faults.added.join(', ')}).`
+      : '',
   ].filter(Boolean).join(' ') || undefined;
 
   // Surface prompt-cache stats so the SaaS can display "saved $X" tooltips.

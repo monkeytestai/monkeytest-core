@@ -30,7 +30,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
-import type { SiteMap, SiteMapForm, SiteMapPage, SiteMapInteractive } from '../types.js';
+import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapPage, SiteMapInteractive } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import {
   canonicalPageUrl,
@@ -181,6 +181,7 @@ export async function explore(
         }
 
         const forms = skeleton.forms.filter(form => form.action || form.fields.length > 0 || form.submitLabel);
+        const controls = skeleton.controls.filter(control => control.label);
         const outbound = selectOutboundLinks(
           skeleton.links
             .map(link => ({ url: canonicalPageUrl(link.url), text: link.text }))
@@ -194,6 +195,7 @@ export async function explore(
           interactive: withScrapedForm(summary.interactive, forms),
           outboundLinks: outbound.map(link => link.url),
           ...(forms.length ? { forms } : {}),
+          ...(controls.length ? { controls } : {}),
           authGated: summary.authGated,
           ...(screenshotPath ? { screenshotPath } : {}),
         };
@@ -276,6 +278,7 @@ interface PageSkeleton {
   links: DiscoveredLink[];
   forms: SiteMapForm[];
   buttons: string[];
+  controls: SiteMapControl[];
 }
 
 async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
@@ -345,14 +348,26 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
       };
     });
 
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"]'))
-      .map(b => txt(b) || (b as HTMLInputElement).value || '')
-      .filter(Boolean)
-      .slice(0, 25);
+    const buttonControls = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'))
+      .map(b => {
+        const label = (txt(b) || (b as HTMLInputElement).value || '').slice(0, 80);
+        const disabled = Boolean((b as HTMLButtonElement).disabled) || b.getAttribute('aria-disabled') === 'true';
+        return { kind: 'button' as const, label, ...(disabled ? { disabled: true } : {}) };
+      })
+      .filter(control => control.label);
+    const buttons = [
+      ...buttonControls.filter(control => control.disabled),
+      ...buttonControls.filter(control => !control.disabled),
+    ].slice(0, 40);
+
+    const linkControls = links
+      .filter(link => link.text)
+      .slice(0, 40)
+      .map(link => ({ kind: 'link' as const, label: link.text.slice(0, 80), href: link.url }));
 
     const visibleText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2200);
 
-    return { headings, links, forms, buttons, visibleText };
+    return { headings, links, forms, buttons: buttons.map(control => control.label), controls: [...buttons, ...linkControls], visibleText };
 
   }, {
     pathSource: FORM_SURFACE_PATH_SOURCE,
@@ -367,6 +382,7 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
     links: collected.links,
     forms: collected.forms,
     buttons: collected.buttons,
+    controls: collected.controls,
   };
 
 }

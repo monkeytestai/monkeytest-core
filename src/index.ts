@@ -86,6 +86,7 @@ export type {
   MonkeyLLMConfig,
   SiteMap,
   SiteMapPage,
+  SiteMapForm,
   SiteMapInteractive,
   TestPlan,
   TestFlow,

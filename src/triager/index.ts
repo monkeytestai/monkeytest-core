@@ -36,6 +36,7 @@ import type {
 import { type EventBus, noopBus } from '../events.js';
 import { failureLocation, fingerprintFailure, legacyFingerprint } from '../trace/fingerprint.js';
 import { bugTracePrefix } from '../trace/serialize.js';
+import { applySameOrigin5xxToRun } from '../runner/http5xx.js';
 
 export interface TriageOptions {
   /**
@@ -51,6 +52,13 @@ export interface TriageOptions {
   events?: EventBus;
   /** Soft cap on bugs to polish per run (cost guard). Default 25. */
   maxBugsToPolish?: number;
+  /**
+   * Promote a passed or skipped step that saw a same-origin HTTP ≥500 into
+   * a failed step before bugs are built. Default false. The CLI sets this
+   * from `--fail-on-5xx` (on unless `--no-fail-on-5xx`). Leaving it off keeps
+   * existing library bug counts.
+   */
+  failOn5xx?: boolean;
 }
 
 /* ── Public entry ─────────────────────────────────────────────────────── */
@@ -59,8 +67,9 @@ export interface TriageOptions {
  * Synchronous, deterministic triage. Always available, always cheap. Use this
  * as a floor; layer `triagePolished` on top when you want LLM-improved copy.
  */
-export function triage(run: RunResult): RunResult {
-  return collapseAndScore(run);
+export function triage(run: RunResult, opts: { failOn5xx?: boolean } = {}): RunResult {
+  const prepared = opts.failOn5xx ? applySameOrigin5xxToRun(run) : run;
+  return collapseAndScore(prepared);
 }
 
 /**
@@ -74,7 +83,7 @@ export async function triagePolished(
 ): Promise<RunResult> {
 
   const events = opts.events ?? noopBus();
-  const base = collapseAndScore(run);
+  const base = triage(run, { failOn5xx: opts.failOn5xx });
 
   if (!opts.llm || base.bugs.length === 0){
     return base;

@@ -88,6 +88,20 @@ export interface MonkeyLLMConfig {
 
 /* ── SiteMap (output of Explorer) ─────────────────────────────────────── */
 
+/**
+ * A `<form>` scraped from the DOM. Absent fields mean the crawler did not
+ * see them. Hosts that do not know this type can ignore `SiteMapPage.forms`.
+ */
+export interface SiteMapForm {
+  /** Resolved action URL when the browser provided one. */
+  action: string;
+  /** Lower-case method, usually `"get"` or `"post"`. */
+  method?: string;
+  fields: string[];
+  /** Visible label of the submit control, when the form had one. */
+  submitLabel?: string;
+}
+
 export interface SiteMapPage {
   url: string;
   title: string;
@@ -97,6 +111,11 @@ export interface SiteMapPage {
   interactive: SiteMapInteractive[];
   /** Outgoing in-domain links the explorer found on this page. */
   outboundLinks: string[];
+  /**
+   * Forms scraped from the DOM. Omitted when the page has none.
+   * Additive: existing readers can ignore it.
+   */
+  forms?: SiteMapForm[];
   /** Whether the page seems to require authentication. */
   authGated: boolean;
   /** Absolute path to the screenshot taken of this page, if requested. */

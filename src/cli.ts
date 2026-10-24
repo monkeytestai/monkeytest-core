@@ -29,6 +29,8 @@
  *   --repeat <n>          Replay each bug n times during `verify` (default 1)
  *   --bug <fingerprint>   Verify a single bug
  *   --json                Machine-readable output (run/diff/report/verify)
+ *   --fail-on-5xx         Fail a step that saw a same-origin HTTP ≥500 (default)
+ *   --no-fail-on-5xx      Leave those responses as evidence on a passed step
  *
  * Exit codes:
  *   0  success / no blocking bugs / no bug still firing
@@ -95,6 +97,11 @@ interface CommonOpts {
   repeat: number;
   /** Restrict `verify` to one fingerprint. */
   bug?: string;
+  /**
+   * Promote a same-origin HTTP ≥500 observed during a step into a blocking
+   * bug. Default true. `--no-fail-on-5xx` turns it off.
+   */
+  failOn5xx: boolean;
 }
 
 function defaultCommonOpts(): CommonOpts {
@@ -107,6 +114,7 @@ function defaultCommonOpts(): CommonOpts {
     json: false,
     heal: false,
     repeat: 1,
+    failOn5xx: true,
   };
 }
 
@@ -150,6 +158,8 @@ function parseArgs(argv: string[]): Parsed {
       case '--no-headless':                out.opts.headless = false; break;
       case '--label':                      out.opts.label = next(); break;
       case '--json':                       out.opts.json = true; break;
+      case '--fail-on-5xx':                out.opts.failOn5xx = true; break;
+      case '--no-fail-on-5xx':             out.opts.failOn5xx = false; break;
       case '--heal':                       out.opts.heal = true; break;
       case '--bug': {
         const fp = next();
@@ -246,6 +256,8 @@ Common flags (apply to most commands):
       --repeat <n>           Replay each bug n times (verify, default 1)
       --bug <fingerprint>    Verify one bug
       --json                 Machine-readable output
+      --fail-on-5xx          Fail steps that saw a same-origin HTTP ≥500 (default)
+      --no-fail-on-5xx       Keep those 5xx responses as evidence only
 
 Exit codes: 0 ok · 1 bugs still firing · 2 bad args / setup · 3 engine error.
 
@@ -272,7 +284,9 @@ Scaffold a working directory with config defaults. Idempotent.`,
 Crawl <url>, summarise pages, generate a TestPlan. Writes plan.json + shots/.`,
     run: `monkeytest run <url> [--max 8] [--flows 6] [--quality balanced]
 Run the full pipeline (explore + plan + run + triage). Writes plan.json,
-runs/<id>.json, and screenshots. Exits with code 1 if blocking bugs found.`,
+runs/<id>.json, and screenshots. Exits with code 1 if blocking bugs found.
+Same-origin HTTP ≥500 responses fail the step (--no-fail-on-5xx opts out).
+The crawl reserves room for help/contact/about pages under a small --max.`,
     rerun: `monkeytest rerun [<runId>] [--heal] [--dir .monkeytest]
 Replay the action trace stored on a run. Does not call the LLM.
 --heal re-resolves a step whose locator no longer matches and marks it healed.
@@ -341,7 +355,7 @@ async function cmdExplore(url: string | undefined, opts: CommonOpts){
   if (!url) die(2, 'Usage: monkeytest explore <url>');
   ensureLLMReady(opts);
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true, failOn5xx: opts.failOn5xx });
   console.log(`\n→ Exploring ${tty(url, 'cyan')} (max ${opts.maxPages} pages, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -379,7 +393,7 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true, failOn5xx: opts.failOn5xx });
   console.log(`\n→ Running ${tty(url, 'cyan')} (max ${opts.maxPages} pages, ${opts.maxFlows} flows, headless=${opts.headless})…\n`);
 
   const t0 = Date.now();
@@ -460,8 +474,9 @@ async function replayStoredRun(stored: StoredRun, traces: FlowTrace[], opts: Com
     heal: opts.heal,
     llm: opts.heal ? runnerLLM(opts) : undefined,
     strictOracles: true,
+    failOn5xx: opts.failOn5xx,
   });
-  const run = triage(raw);
+  const run = triage(raw, { failOn5xx: opts.failOn5xx });
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
   const { path: runFile, id: newRunId } = saveRun(run, {
     dir: opts.dir,
@@ -504,7 +519,7 @@ async function rerunStoredPlan(stored: StoredRun | undefined, opts: CommonOpts){
   const screenshotsDir = resolve(opts.dir, 'shots');
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true });
+  const monkey = new Monkey({ llm: buildLLMConfig(opts), strictOracles: true, failOn5xx: opts.failOn5xx });
   console.log(`\n↻ Re-running ${storedPlan.plan.flows.length} flow(s) from ${tty(relative(process.cwd(), planSource), 'cyan')}…\n`);
 
   const t0 = Date.now();
@@ -569,6 +584,7 @@ async function cmdVerify(positional: string | undefined, opts: CommonOpts){
     fingerprints: opts.bug ? [opts.bug] : undefined,
     recordVideo: false,
     strictOracles: true,
+    failOn5xx: opts.failOn5xx,
   });
 
   if (opts.json){

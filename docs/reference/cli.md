@@ -114,8 +114,10 @@ Print the engine version.
 | `--api-key <key>`       | env var        | Override the env API key                                              |
 | `--base-url <url>`      | —              | Required for `openai_compatible` (Ollama, vLLM, OpenRouter, …)        |
 | `--quality <preset>`    | `balanced`     | `cheap` \| `balanced` \| `smart` (used by `autoLLMConfig`)            |
-| `-m, --max <n>`         | `8`            | Max pages to crawl (`run`, `explore`)                                 |
-| `--flows <n>`           | `6`            | Max flows to plan                                                     |
+| `-m, --max <n>`         | `8`            | Max pages to crawl (`run`, `explore`). A few slots are reserved for help, contact, support, and about links the crawl actually saw. |
+| `--flows <n>`           | `6`            | Max flows to plan. A crawled public form keeps one submit flow when this is at least 1. |
+| `--fail-on-5xx`         | on             | Fail a step that saw a same-origin HTTP ≥500 (document, xhr, or fetch) and report a blocking bug. |
+| `--no-fail-on-5xx`      |                | Leave those 5xx responses as evidence on the step. Library callers (`new Monkey`) already default this off. |
 | `--no-headless`         | headless       | Show the browser window                                               |
 | `--label <text>`        | —              | Free-form label saved on the plan/run                                 |
 | `--json`                | text           | Machine-readable output (`run`, `diff`, `report`)                     |

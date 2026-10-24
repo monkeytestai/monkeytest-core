@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--fail-on-5xx` (CLI default on, `--no-fail-on-5xx` opts out) fails a passed or skipped step that observed a same-origin HTTP ≥500 on a document, xhr, or fetch, and the triager files it as a critical bug. `new Monkey(...)` leaves `failOn5xx` off so existing hosts keep the same bug counts; pass `failOn5xx: true` or `run.failOn5xx` to opt in. `www` and the apex host match. Other ports, third-party hosts, and image/font responses stay evidence only.
+- The crawler reserves a few `maxPages` slots for help, contact, support, about, and other form-style links it actually saw, and keeps those links even when they sit past the ordinary link cap. `SiteMapPage.forms` records scraped forms (optional; existing readers can ignore it).
+- When the crawl contains a public form and `maxFlows` is at least 1, the planner keeps a form-submit flow grounded in that page's URL, fields, and submit label. A header search box does not take that slot. The model is asked for the same flow; the deterministic pass is the floor.
 - Action traces on each flow and on each bug (locator, value, URL, timing, evidence).
 - `fingerprintV2` and `fingerprintParts` (version 2) from failure category, URL template, element role + name, and a normalised error signal. `fingerprint` stays the legacy v1 hash so stored bugs still match. Diff and verify use v2 only when both sides have it.
 - `monkeytest rerun` replays the stored trace with no LLM calls. `--heal` re-resolves a step whose locator missed and marks that step `healed`.

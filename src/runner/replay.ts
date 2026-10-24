@@ -30,7 +30,8 @@ import {
   type ResolvedAction,
 } from './actions.js';
 import { createFlowTimeout } from './timeout.js';
-import { applyPassedOracles, attachStepEvidence } from './evidence.js';
+import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
+import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
 
 export interface ReplayOptions {
   screenshotsDir: string;
@@ -44,6 +45,11 @@ export interface ReplayOptions {
    * replay does not grow new bugs. The CLI passes true.
    */
   strictOracles?: boolean;
+  /**
+   * Same switch as `RunnerOptions.failOn5xx`. Default false. The CLI passes
+   * the value of `--fail-on-5xx` (on unless `--no-fail-on-5xx`).
+   */
+  failOn5xx?: boolean;
   /**
    * Reuse a browser across calls. The caller owns its lifecycle; replay will
    * not close it. `verify` uses this so N repeats share one Chromium.
@@ -150,6 +156,7 @@ async function replayFlow(
 
   const page = await context.newPage();
   const evidence = attachStepEvidence(page);
+  const origins = collectOrigins([trace.startUrl]);
 
   const steps: StepResult[] = [];
   const traceSteps: TraceStep[] = [];
@@ -174,6 +181,14 @@ async function replayFlow(
       const played = await playStep(page, trace, recorded, opts, stepTimeout);
       if (opts.strictOracles) {
         played.outcome = await applyPassedOracles(page, evidence, recorded.index, played.outcome);
+      }
+      if (opts.failOn5xx) {
+        if (!opts.strictOracles) await flushStepEvents(page);
+        played.outcome = outcomeWithSameOrigin5xx(
+          played.outcome,
+          evidence.networkByStep.get(recorded.index),
+          origins,
+        );
       }
       const urlAfter = safeUrl(page);
 
@@ -219,9 +234,22 @@ async function replayFlow(
         failureReason = result.error || result.observation;
       }
     }
+    if (opts.failOn5xx) await flushStepEvents(page);
   } finally {
     signal.removeEventListener('abort', onAbort);
     await context.close().catch(() => {});
+  }
+
+  if (opts.failOn5xx) {
+    const promoted = promoteRecordedSteps(steps, traceSteps, origins);
+    if (promoted.changed) {
+      steps.splice(0, steps.length, ...promoted.steps);
+      traceSteps.splice(0, traceSteps.length, ...promoted.traceSteps);
+      if (promoted.failed) {
+        failed = true;
+        failureReason = failureReason || promoted.failureReason;
+      }
+    }
   }
 
   const status: FlowStatus = failed ? 'failed' : 'passed';

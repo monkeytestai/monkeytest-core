@@ -12,6 +12,12 @@
  * final whole-site summary that names the site type ("ecommerce",
  * "saas dashboard", etc.).
  *
+ * Link order is still breadth-first, but a few slots are reserved for
+ * form / help / contact / support / about pages the crawl actually saw.
+ * A shop homepage full of product links cannot spend the whole `maxPages`
+ * budget before `/help` is visited. URLs that were never linked are not
+ * invented.
+ *
  * What the explorer is NOT:
  *   - It does not log in. Auth-gated flows are surfaced to the planner so
  *     they can be flagged as `auth_required` later.
@@ -24,8 +30,19 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
-import type { SiteMap, SiteMapPage, SiteMapInteractive } from '../types.js';
+import type { SiteMap, SiteMapForm, SiteMapPage, SiteMapInteractive } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
+import {
+  canonicalPageUrl,
+  enqueueLinks,
+  FORM_SURFACE_PATH_SOURCE,
+  FORM_SURFACE_TEXT_SOURCE,
+  isFormSurfaceLink,
+  pickNextCrawlUrl,
+  selectOutboundLinks,
+  type CrawlQueueItem,
+  type DiscoveredLink,
+} from './queue.js';
 
 export interface ExploreOptions {
   /** Hard cap on how many pages the explorer visits. Default 8. */
@@ -59,11 +76,13 @@ export async function explore(
   const startOrigin = new URL(startUrl).origin;
   const events      = opts.events ?? noopBus();
 
-  const visited       = new Set<string>();
-  const queue: string[] = [normaliseUrl(startUrl)];
+  const visited = new Set<string>();
+  const start = canonicalPageUrl(startUrl);
+  const queue: CrawlQueueItem[] = [{ url: start, surface: isFormSurfaceLink({ url: start }) }];
   const pages: SiteMapPage[] = [];
   const failures: { url: string; reason: string }[] = [];
   let authUrlsQueued = 0;
+  let surfaceVisited = 0;
 
   const screenshotsDir = opts.screenshotsDir ? resolve(opts.screenshotsDir) : null;
   if (screenshotsDir){
@@ -89,8 +108,15 @@ export async function explore(
 
     while (queue.length > 0 && pages.length < maxPages){
 
-      const url = queue.shift()!;
-      if (visited.has(url)) continue;
+      const index = pickNextCrawlUrl(queue, {
+        pagesVisited: pages.length,
+        maxPages,
+        surfaceVisited,
+      });
+      if (index < 0) break;
+      const next = queue.splice(index, 1)[0];
+      if (!next || visited.has(next.url)) continue;
+      const url = next.url;
       visited.add(url);
 
       const page = await context.newPage();
@@ -154,17 +180,26 @@ export async function explore(
           };
         }
 
+        const forms = skeleton.forms.filter(form => form.action || form.fields.length > 0 || form.submitLabel);
+        const outbound = selectOutboundLinks(
+          skeleton.links
+            .map(link => ({ url: canonicalPageUrl(link.url), text: link.text }))
+            .filter(link => belongsToOrigin(link.url, startOrigin)),
+        );
+
         const sm: SiteMapPage = {
           url,
           title: skeleton.title,
           summary: summary.summary,
-          interactive: summary.interactive,
-          outboundLinks: skeleton.links.filter(l => belongsToOrigin(l, startOrigin)),
+          interactive: withScrapedForm(summary.interactive, forms),
+          outboundLinks: outbound.map(link => link.url),
+          ...(forms.length ? { forms } : {}),
           authGated: summary.authGated,
           ...(screenshotPath ? { screenshotPath } : {}),
         };
 
         pages.push(sm);
+        if (isFormSurfaceLink({ url: sm.url, text: sm.title })) surfaceVisited += 1;
         opts.onPage?.(sm);
         events.emit({
           phase: 'explorer', type: 'explore.page_visited',
@@ -178,20 +213,12 @@ export async function explore(
           },
         });
 
-        // Prefer public product pages. Auth walls eat crawl budget and
-        // produce login-only test plans. Cap obvious auth URLs at one visit
-        // so the planner still knows a login surface exists.
+        // Auth walls eat crawl budget and produce login-only test plans.
+        // Cap obvious auth URLs at one visit so the planner still knows a
+        // login surface exists. Form/help links stay in the queue and are
+        // pulled forward while the surface reserve is unfilled.
         if (!sm.authGated){
-          for (const link of sm.outboundLinks){
-            if (visited.has(link) || queue.includes(link)) continue;
-            if (looksLikeAuthUrl(link)){
-              if (authUrlsQueued >= 1) continue;
-              authUrlsQueued += 1;
-              queue.push(link);
-            } else {
-              queue.push(link);
-            }
-          }
+          authUrlsQueued = enqueueLinks(queue, visited, outbound, authUrlsQueued);
         }
 
       } catch (err) {
@@ -229,7 +256,7 @@ export async function explore(
       publicJourneys: overall.publicJourneys ?? undefined,
       authSurfaces: overall.authSurfaces ?? undefined,
       pages,
-      pendingUrls: queue,
+      pendingUrls: queue.map(item => item.url),
       failedUrls: failures,
     };
 
@@ -246,8 +273,8 @@ interface PageSkeleton {
   title: string;
   headings: string[];
   visibleText: string;     // first ~1500 chars of body text
-  links: string[];
-  forms: { action: string; fields: string[] }[];
+  links: DiscoveredLink[];
+  forms: SiteMapForm[];
   buttons: string[];
 }
 
@@ -257,7 +284,9 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
   const title = await page.title().catch(() => '');
 
   // Use page.evaluate for one cheap round-trip to collect everything we need.
-  const collected = await page.evaluate(() => {
+  // Keep every form/help-style anchor, plus the first 80 ordinary ones, so a
+  // long product grid cannot drop a footer "Help" link before it leaves the page.
+  const collected = await page.evaluate(({ pathSource, textSource }) => {
 
     function txt(el: Element): string {
       return (el.textContent || '').trim().replace(/\s+/g, ' ');
@@ -268,21 +297,51 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
       .filter(Boolean)
       .slice(0, 20);
 
-    const links = Array.from(document.querySelectorAll('a[href]'))
-      .map(a => (a as HTMLAnchorElement).href)
-      .filter(Boolean)
-      .slice(0, 80);
+    const pathRe = new RegExp(pathSource, 'i');
+    const textRe = new RegExp(textSource, 'i');
+    const anchors = Array.from(document.querySelectorAll('a[href]'))
+      .map(a => ({
+        url: (a as HTMLAnchorElement).href,
+        text: txt(a).slice(0, 80),
+      }))
+      .filter(link => link.url);
+    const surfaceUrls = new Set<string>();
+    const ordinaryUrls = new Set<string>();
+    for (const link of anchors) {
+      let path = link.url;
+      try {
+        const parsed = new URL(link.url);
+        path = `${parsed.pathname}${parsed.search}`;
+      } catch { /* keep the raw href */ }
+      const surface = pathRe.test(path) || (link.text ? textRe.test(link.text) : false);
+      if (surface) surfaceUrls.add(link.url);
+      else if (ordinaryUrls.size < 80) ordinaryUrls.add(link.url);
+    }
+    const seen = new Set<string>();
+    const links = anchors.filter(link => {
+      if (seen.has(link.url)) return false;
+      if (!surfaceUrls.has(link.url) && !ordinaryUrls.has(link.url)) return false;
+      seen.add(link.url);
+      return true;
+    });
 
     const forms = Array.from(document.querySelectorAll('form')).slice(0, 10).map(f => {
-      const inputs = Array.from(f.querySelectorAll('input, textarea, select'))
+      const form = f as HTMLFormElement;
+      const inputs = Array.from(form.querySelectorAll('input, textarea, select'))
         .map(i => {
           const el = i as HTMLInputElement;
+          const type = (el.type || '').toLowerCase();
+          if (type === 'hidden' || type === 'submit' || type === 'button') return '';
           return el.name || el.placeholder || el.type || el.tagName.toLowerCase();
         })
         .filter(Boolean);
+      const submit = form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+      const submitLabel = submit ? (txt(submit) || (submit as HTMLInputElement).value || '') : '';
       return {
-        action: (f as HTMLFormElement).action || '',
+        action: form.action || '',
+        method: (form.method || 'get').toLowerCase(),
         fields: inputs,
+        ...(submitLabel ? { submitLabel: submitLabel.slice(0, 80) } : {}),
       };
     });
 
@@ -295,6 +354,9 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
 
     return { headings, links, forms, buttons, visibleText };
 
+  }, {
+    pathSource: FORM_SURFACE_PATH_SOURCE,
+    textSource: FORM_SURFACE_TEXT_SOURCE,
   });
 
   return {
@@ -348,7 +410,7 @@ Buttons:
 ${skeleton.buttons.map(b => `  - ${b}`).join('\n') || '  (none)'}
 
 Forms:
-${skeleton.forms.map((f, i) => `  ${i + 1}. action=${f.action || '(none)'} fields=[${f.fields.join(', ')}]`).join('\n') || '  (none)'}
+${skeleton.forms.map((f, i) => `  ${i + 1}. method=${f.method || 'get'} action=${f.action || '(none)'} submit=${f.submitLabel || '(none)'} fields=[${f.fields.join(', ')}]`).join('\n') || '  (none)'}
 
 Visible text (excerpt):
 ${skeleton.visibleText || '(empty)'}
@@ -430,20 +492,6 @@ Reply with JSON only.
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
-function normaliseUrl(u: string): string {
-  try {
-    const url = new URL(u);
-    url.hash = '';
-    // Remove trailing slash on path so we don't visit /foo and /foo/ separately
-    if (url.pathname.endsWith('/') && url.pathname.length > 1){
-      url.pathname = url.pathname.slice(0, -1);
-    }
-    return url.toString();
-  } catch {
-    return u;
-  }
-}
-
 /**
  * Filesystem-safe filename slug derived from a URL. Caps length so we don't
  * blow past OS path limits on deep URLs.
@@ -473,12 +521,18 @@ function belongsToOrigin(href: string, origin: string): boolean {
   }
 }
 
-function looksLikeAuthUrl(u: string): boolean {
-  try {
-    const url = new URL(u);
-    const path = `${url.pathname}${url.search}`.toLowerCase();
-    return /\/(login|log-in|signin|sign-in|signup|sign-up|register|otp|verify|forgot|reset-password|password|oauth|sso|auth)(\/|$)/.test(path);
-  } catch {
-    return false;
-  }
+function withScrapedForm(interactive: SiteMapInteractive[], forms: SiteMapForm[]): SiteMapInteractive[] {
+  if (forms.length === 0 || interactive.some(item => item.kind === 'form')) return interactive;
+  const form = [...forms].sort((a, b) => scrapedFormRank(b) - scrapedFormRank(a))[0];
+  const label = (form.submitLabel || form.fields.slice(0, 3).join(', ') || 'form').slice(0, 60);
+  return [...interactive, { kind: 'form', label }];
+}
+
+/** Header search boxes sort below a POST form so the planner sees the contact control. */
+function scrapedFormRank(form: SiteMapForm): number {
+  let score = 0;
+  if ((form.method || 'get').toLowerCase() === 'post') score += 2;
+  if (form.submitLabel) score += 1;
+  if (/\/search(?:\/|$|\?)/i.test(form.action || '')) score -= 2;
+  return score;
 }

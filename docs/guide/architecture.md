@@ -35,7 +35,7 @@ What it does:
 
 - Takes the `SiteMap` and the inferred site type ("ecommerce", "blog", "saas dashboard"…).
 - Asks the **planner LLM** for up to `maxFlows` flows, each with: a name, kind (`happy_path`, `edge_case`, `auth_required`, `destructive`, `accessibility`, `visual`), starting URL, ordered steps, and an overall expectation.
-- Validates the LLM's JSON against a strict zod schema. Anything that doesn't fit gets rejected, not silently consumed.
+- Reads the model JSON leniently. A flow with no usable step is dropped. Invalid JSON or a schema failure does not discard the rest of the plan.
 - Strips flows that hit auth walls if `includeAuthFlows: false`.
 - If the sitemap contains a public form (POST contact/help preferred over a search box) and `maxFlows` allows it, keeps one submit flow whose URL and fields come from the crawl.
 - Also keeps, within that same budget, one grounded flow each for an enabled non-submit button, a same-origin link whose target was not crawled, and a disabled non-submit button. The model is still asked for journeys. These flows are the floor, and they replace leftover model flows when `maxFlows` is full. No URL is invented.
@@ -84,7 +84,7 @@ The pipeline is intentionally fault-tolerant:
 | -------------- | -------------- |
 | Some pages 404 / time out | The pages that did succeed, in the `SiteMap`. |
 | The explorer LLM rejects a page | The page is recorded in `failedUrls[]`; crawl continues. |
-| The planner LLM throws | The `SiteMap` (with explorer screenshots), an empty plan, and `notes` explaining the failure. |
+| The planner LLM throws or returns a plan that fails schema checks | The `SiteMap`, an `engine.error` event, and a plan that still contains the crawl's public-form and fault-surface flows (up to `maxFlows`). `notes` include the model error. The run stays empty only when the crawl has neither a public form nor a fault control. |
 | A flow blows up mid-execution | Every step that ran, every screenshot taken, the partial `FlowResult`. |
 | A single step times out | The screenshot at the moment of failure, plus the rest of the flow's steps marked `blocked`. |
 

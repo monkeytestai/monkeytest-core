@@ -34,7 +34,7 @@ export type { StoredPlan, StoredRun } from './persistence/index.js';
 export { explore } from './explorer/index.js';
 export type { ExploreOptions } from './explorer/index.js';
 
-export { plan } from './planner/index.js';
+export { plan, groundedTestPlan } from './planner/index.js';
 export type { PlannerOptions } from './planner/index.js';
 
 export { runPlan } from './runner/index.js';

@@ -12,7 +12,7 @@
 
 import { createLLM, type LLM } from './llm/index.js';
 import { explore, type ExploreOptions } from './explorer/index.js';
-import { plan, type PlannerOptions } from './planner/index.js';
+import { groundedTestPlan, plan, type PlannerOptions } from './planner/index.js';
 import { runPlan, type RunnerOptions } from './runner/index.js';
 import { replayTraces, type ReplayOptions } from './runner/replay.js';
 import { triage, triagePolished } from './triager/index.js';
@@ -162,16 +162,15 @@ export class Monkey {
         message: `Planner failed: ${truncate(msg, 160)}`,
         data: { error: msg },
       });
-      return {
+      const fallback = groundedTestPlan(
         siteMap,
-        plan: {
-          startUrl,
-          siteType: siteMap.siteType,
-          flows: [],
-          notes: `Planner failed after exploration: ${msg}`,
-        },
-        run: emptyRun(startUrl),
-      };
+        opts.plan?.maxFlows ?? 6,
+        `Planner failed after exploration: ${msg}`,
+      );
+      if (fallback.flows.length === 0) {
+        return { siteMap, plan: fallback, run: emptyRun(startUrl) };
+      }
+      testPlan = fallback;
     }
 
     if (testPlan.flows.length === 0){
@@ -398,12 +397,15 @@ export class Monkey {
     try {
       testPlan = await plan(siteMap, this.plannerLLM, opts.plan);
     } catch (err) {
-      yield {
-        type: 'error',
-        phase: 'planner',
-        message: err instanceof Error ? err.message : String(err),
-      };
-      return;
+      const msg = err instanceof Error ? err.message : String(err);
+      const fallback = groundedTestPlan(
+        siteMap,
+        opts.plan?.maxFlows ?? 6,
+        `Planner failed after exploration: ${msg}`,
+      );
+      yield { type: 'error', phase: 'planner', message: msg };
+      if (fallback.flows.length === 0) return;
+      testPlan = fallback;
     }
 
     yield { type: 'plan.complete', plan: testPlan };

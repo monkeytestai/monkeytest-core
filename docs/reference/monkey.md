@@ -87,7 +87,7 @@ for await (const evt of monkey.run(url, { explore: { maxPages: 4 } })) {
 | Failure | What you still get |
 | ------- | ------------------ |
 | Some pages fail to load | The `SiteMap` with whatever pages did succeed |
-| The planner LLM throws | The `SiteMap`, an empty `plan`, and an `engine.error` event |
+| The planner LLM throws or returns invalid JSON | The `SiteMap`, an `engine.error` event, and a `plan` of grounded form and fault flows when the crawl has them. `notes` include the model error. An empty plan remains only when there is nothing on the sitemap to ground. |
 | A flow blows up mid-execution | All steps that ran, their screenshots, and a `failed` `FlowResult` |
 
 The engine never throws out of `executeAndTriage` for these cases — it always resolves with structured data. Real exceptions only escape for unrecoverable problems (no `screenshotsDir` writable, missing API key, etc.).

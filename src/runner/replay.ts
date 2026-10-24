@@ -319,6 +319,22 @@ async function playStep(
     };
   }
 
+  // The original run already continued past this step. A locator miss here
+  // must not become a hard failure, or verify never reaches the later bug
+  // (a placeholder fill that timed out, then a form POST that returned 500).
+  // A step that originally passed or failed still stops the flow.
+  if (recorded.status === 'skipped'){
+    return {
+      action: actionFromRecorded(recorded),
+      locator: recorded.locator,
+      resolution: 'recorded',
+      outcome: {
+        status: 'skipped',
+        observation: `Recorded step was skipped and its locator still does not match for ${recorded.tool} (${describeLocator(recorded)}). Left skipped so later steps still run.`,
+      },
+    };
+  }
+
   return {
     action: actionFromRecorded(recorded),
     locator: recorded.locator,

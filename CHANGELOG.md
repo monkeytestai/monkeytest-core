@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replay and verify keep going when a step the original run already marked `skipped` has a locator that still misses. A soft skip (for example a placeholder fill that never matched) no longer becomes `locator_mismatch` and hides a later bug, such as a form POST that returned HTTP 500. A step that originally passed or failed still stops the flow. Fingerprints are unchanged.
 - A planner model response that is invalid JSON, fails schema validation, or includes a flow with empty `steps` no longer wipes the plan. Usable model flows are kept. The public-form submit flow and scraped fault-control flows are still added, up to `maxFlows`. `plan()` records the model error on `TestPlan.notes` and emits `engine.error`. `executeAndTriage` runs that plan. An empty plan remains only when the crawl has no public form and no fault control. `RunResult` fields are unchanged. `groundedTestPlan(siteMap, maxFlows)` is the same crawl-only floor, for a host that catches a planner failure itself.
 - The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
 

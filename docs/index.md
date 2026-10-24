@@ -22,7 +22,7 @@ hero:
 features:
   - title: Drop-in, not framework
     icon: 🧰
-    details: One library, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`. The npm package is still being published; the quick start builds from the repo.
+    details: One library, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`. Install with `npm install @monkeytestai/monkeytest-core`.
   - title: Bring your own LLM
     icon: 🧠
     details: OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter). Pick a different model per phase.
@@ -44,8 +44,8 @@ features:
 .vp-doc h2 + p { font-size: 1.0625rem; }
 </style>
 
-::: info npm package coming
-`npm install @monkeytestai/monkeytest-core` returns 404 as of October 2026. The [quick start](/guide/quick-start) clones the repo, builds it, and runs a smoke test with no API key. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
+::: info Install
+`npm install @monkeytestai/monkeytest-core` (version 0.4.0, [npm](https://www.npmjs.com/package/@monkeytestai/monkeytest-core)). The [quick start](/guide/quick-start) also covers a clone and a no-key smoke test. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
 :::
 
 ## Why MonkeyTest Core?

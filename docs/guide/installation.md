@@ -1,6 +1,6 @@
 # Installation
 
-The commands that work today are a clone and a local build. The npm package is reserved and not published.
+[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.0** is published on npm. `npm install @monkeytestai/monkeytest-core` is the install. A clone is the path for contributors.
 
 ## Requirements
 
@@ -8,26 +8,7 @@ The commands that work today are a clone and a local build. The npm package is r
 - **Playwright Chromium**, downloaded once with `npx playwright install chromium` (about 170 MB for current builds, plus a headless shell).
 - An **LLM API key** only when you want a real crawl-plan-run. The smoke script in the [quick start](/guide/quick-start) uses a stub LLM and needs no key.
 
-## From source (this is the path that works)
-
-```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
-npm install
-npm run build
-npx playwright install chromium
-node scripts/smoke.mjs
-```
-
-`npm run build` writes `dist/`, including `dist/cli.js`. Run the CLI with `node dist/cli.js`. Step-by-step output, the Gemini command, and Ollama are on the [quick start](/guide/quick-start).
-
-`npm run build` removes `.tsbuildinfo` before `tsc`, and TypeScript incremental mode is off. A fresh build emits `.js` and `.d.ts`. If you are on an older commit and `dist/` contains only declaration files, run `npm run clean && npm run build`.
-
-## npm (not available yet)
-
-The package name is `@monkeytestai/monkeytest-core`. As of 23 Oct 2026, `npm view @monkeytestai/monkeytest-core` returns **E404**. The same is true for pnpm, yarn, and bun: the registry has nothing to install.
-
-When it is published, this is the install:
+## npm
 
 ::: code-group
 
@@ -53,9 +34,24 @@ bunx playwright install chromium
 
 :::
 
-Publishing runs from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag. The workflow needs the `NPM_TOKEN` Actions secret (an npm automation token with publish access to `@monkeytestai/*`). `publishConfig.access` is already `public`. Until that secret is set and a tag is pushed, use the clone above.
+The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary (`npx monkeytest`, or `monkeytest` after a global install). Releases are published from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag, with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
 
-The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary. The release workflow publishes with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
+## From a clone (contributors)
+
+The clone is how you change the engine. It also runs the no-key smoke script, which is not in the published package.
+
+```bash
+git clone https://github.com/monkeytestai/monkeytest-core.git
+cd monkeytest-core
+npm install
+npm run build
+npx playwright install chromium
+node scripts/smoke.mjs
+```
+
+`npm run build` writes `dist/`, including `dist/cli.js`. Run the CLI with `node dist/cli.js`. Step-by-step output, the Gemini command, and Ollama are on the [quick start](/guide/quick-start).
+
+`npm run build` removes `.tsbuildinfo` before `tsc`, and TypeScript incremental mode is off. A fresh build emits `.js` and `.d.ts`. If you are on an older commit and `dist/` contains only declaration files, run `npm run clean && npm run build`.
 
 ## Set up a provider when you want a real run
 
@@ -74,8 +70,10 @@ A missing variable fails immediately (exit 2), before Chromium launches. A varia
 
 ```bash
 export GEMINI_API_KEY="paste-your-key"
-node dist/cli.js run https://example.com --max 2 --flows 1
+npx monkeytest run https://example.com --max 2 --flows 1
 ```
+
+From a clone, the same command is `node dist/cli.js run https://example.com --max 2 --flows 1`.
 
 Outputs land in `.monkeytest/plan.json`, `.monkeytest/runs/`, and `.monkeytest/shots/`. The copy-paste Ollama block is on the [quick start](/guide/quick-start#fully-local-with-ollama).
 

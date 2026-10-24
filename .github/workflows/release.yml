@@ -24,7 +24,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write   # create the GitHub release after npm publish
   id-token: write   # required for npm provenance attestations
 
 jobs:
@@ -36,6 +36,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -48,6 +49,7 @@ jobs:
         run: npm ci
 
       - name: Verify tag matches package.json
+        id: package_version
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           TAG_VERSION="${TAG#v}"
@@ -58,6 +60,7 @@ jobs:
             echo "::error::Tag $TAG does not match package.json version $PKG_VERSION"
             exit 1
           fi
+          echo "version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: npm run build
@@ -85,7 +88,7 @@ jobs:
             **Install:**
 
             ```bash
-            npm install @monkeytestai/monkeytest-core@${{ github.event.inputs.tag || github.ref_name }}
+            npm install @monkeytestai/monkeytest-core@${{ steps.package_version.outputs.version }}
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

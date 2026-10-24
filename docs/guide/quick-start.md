@@ -1,8 +1,15 @@
 # Quick start
 
-Clone the repo, build it, and run the smoke script. That path works today, with no API key and no npm package. A fresh machine spends most of the few minutes on `npm install` and the Chromium download. The smoke run itself is about two seconds.
+[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.0** is on npm.
 
-`@monkeytestai/monkeytest-core` is the package name the project will publish. As of 23 Oct 2026 the registry returns **404** (`npm view @monkeytestai/monkeytest-core`). The npm commands are written at the bottom so they are ready when a release exists. Until then, use the clone.
+```bash
+npm install @monkeytestai/monkeytest-core
+npx playwright install chromium
+export GEMINI_API_KEY="paste-your-key"
+npx monkeytest run https://example.com --max 2 --flows 1
+```
+
+pnpm, yarn, and bun install the same package (`pnpm add @monkeytestai/monkeytest-core`, `yarn add @monkeytestai/monkeytest-core`, `bun add @monkeytestai/monkeytest-core`). The sections below are the contributor clone: a local build and a no-key smoke script. A fresh machine spends most of the few minutes on `npm install` and the Chromium download. The smoke run itself is about two seconds.
 
 ## Prerequisites
 
@@ -60,7 +67,7 @@ The last line is the success signal. Then confirm the CLI is the binary you just
 node dist/cli.js --help
 ```
 
-The help text lists `init`, `explore`, `run`, `rerun`, `diff`, and `report`. Inside this clone the command is `node dist/cli.js`. `npx monkeytest` starts working after the package is published, or when this package is installed into another project.
+The help text lists `init`, `explore`, `run`, `rerun`, `diff`, and `report`. Inside this clone the command is `node dist/cli.js`. After `npm install @monkeytestai/monkeytest-core`, the same binary is `npx monkeytest` (or `monkeytest` if you installed it globally).
 
 ## 4. First real run (free Gemini key)
 
@@ -169,22 +176,9 @@ node dist/cli.js diff prev latest
 
 `node dist/cli.js report` prints the latest run: flows, steps, and the `shots/` path stored on each step.
 
-## npm package (not available yet)
-
-When the package is on the registry, installing it replaces the clone for app code:
-
-```bash
-npm install @monkeytestai/monkeytest-core
-npx playwright install chromium
-export GEMINI_API_KEY="paste-your-key"
-npx monkeytest run https://example.com --max 2 --flows 1
-```
-
-The same package name is what pnpm, yarn, and bun will use. Publishing is [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml): a `v*` tag, and the `NPM_TOKEN` repository secret. Until that secret exists and a tag is pushed, `npm install @monkeytestai/monkeytest-core` cannot succeed.
-
 ## Library sketch
 
-This is the call most of the other pages show. The import name works after the package is installed. Inside this clone, import `./src/index.ts` from a `tsx` script, or `./dist/index.js` from plain Node.
+This is the call most of the other pages show. It imports the published package. Inside this clone, import `./src/index.ts` from a `tsx` script, or `./dist/index.js` from plain Node.
 
 ```ts
 import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';

@@ -29,20 +29,37 @@ import type {
 export interface MonkeyConfig {
   llm: MonkeyLLMConfig;
   /**
-   * Turn on the v2 step oracles (uncaught page error, document HTTP 404,
-   * action HTTP 5xx, disabled control). Default false, so existing
-   * `new Monkey(...)` callers keep the same bug counts and `flowsFailed`.
-   * The CLI sets this to true.
+   * Fail a step on an uncaught page error, a document HTTP 404, an action
+   * HTTP ≥500, or a disabled control the step tried to use. Default **on**.
+   * Pass `false` to restore the previous "those signals stay evidence"
+   * bug counts. The CLI always passes `true`. A per-call `run.strictOracles`
+   * overrides the constructor.
    */
   strictOracles?: boolean;
   /**
    * Fail a passed or skipped step that observed a same-origin HTTP ≥500
    * (document, xhr, or fetch) and triage it as a blocking bug. Default
-   * false, so existing hosts keep the same bug counts. The CLI defaults
-   * this to true (`--no-fail-on-5xx` opts out). A per-call `run.failOn5xx`
-   * or replay `failOn5xx` overrides the constructor.
+   * **on**. Pass `false` to leave those responses as evidence. The CLI
+   * defaults this on (`--no-fail-on-5xx` opts out). A per-call
+   * `run.failOn5xx` or replay `failOn5xx` overrides the constructor.
+   *
+   * `runPlan`, `replayTraces`, and `triage(run)` still leave this off unless
+   * the caller passes it. `Monkey` passes the constructor value through.
    */
   failOn5xx?: boolean;
+}
+
+/**
+ * Product defaults for hard-fault oracles. Both are on unless the host
+ * passes `false`. `runPlan` / `triage(run)` do not use this helper; `Monkey` does.
+ */
+export function resolveMonkeyOracles(
+  config: Pick<MonkeyConfig, 'strictOracles' | 'failOn5xx'> = {},
+): { strictOracles: boolean; failOn5xx: boolean } {
+  return {
+    strictOracles: config.strictOracles !== false,
+    failOn5xx: config.failOn5xx !== false,
+  };
 }
 
 export interface ExploreAndPlanOptions {
@@ -79,9 +96,9 @@ export class Monkey {
   private readonly runnerLLM: LLM;
   /** Optional polish LLM; when present, the triager rewrites bug copy. */
   private readonly triagerLLM?: LLM;
-  /** v2 product oracles. Off unless the caller opts in. */
+  /** Page error, document 404, action 5xx, disabled control. On unless opted out. */
   private readonly strictOracles: boolean;
-  /** Same-origin HTTP ≥500 promotion. Off unless the caller opts in. */
+  /** Same-origin HTTP ≥500 promotion. On unless opted out. */
   private readonly failOn5xx: boolean;
 
   constructor(config: MonkeyConfig){
@@ -97,8 +114,9 @@ export class Monkey {
     // Triager polish is fully opt-in. When unset, the deterministic
     // rule-based triager runs alone (zero LLM cost).
     this.triagerLLM  = config.llm.triager ? createLLM(config.llm.triager) : undefined;
-    this.strictOracles = config.strictOracles === true;
-    this.failOn5xx = config.failOn5xx === true;
+    const oracles = resolveMonkeyOracles(config);
+    this.strictOracles = oracles.strictOracles;
+    this.failOn5xx = oracles.failOn5xx;
 
   }
 

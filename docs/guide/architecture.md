@@ -21,7 +21,7 @@ What it does:
 - For each visited page, extracts: `<title>`, visible text, salient interactive elements (forms, buttons, links, inputs, menus), in-domain outbound links.
 - Asks the **explorer LLM** to summarise the page in one short paragraph and tag whether it looks auth-gated.
 - Optionally screenshots every page to `screenshotsDir` (this becomes evidence for the report).
-- Follows in-domain links breadth-first up to `maxPages`, reserving a few of those slots for help, contact, support, and about links the crawl actually saw so a product grid cannot crowd them out. Scraped `<form>`s are stored on `SiteMapPage.forms`.
+- Follows in-domain links breadth-first up to `maxPages`, reserving a few of those slots for help, contact, support, and about links the crawl actually saw so a product grid cannot crowd them out. Scraped `<form>`s are stored on `SiteMapPage.forms`. Scraped buttons and links, including disabled controls, are stored on `SiteMapPage.controls`.
 
 Output: a `SiteMap` with `pages[]`, `pendingUrls[]`, and `failedUrls[]`. Always returned, even if some pages fail — failures don't kill the run.
 
@@ -38,6 +38,7 @@ What it does:
 - Validates the LLM's JSON against a strict zod schema. Anything that doesn't fit gets rejected, not silently consumed.
 - Strips flows that hit auth walls if `includeAuthFlows: false`.
 - If the sitemap contains a public form (POST contact/help preferred over a search box) and `maxFlows` allows it, keeps one submit flow whose URL and fields come from the crawl.
+- Also keeps, within that same budget, one grounded flow each for an enabled non-submit button, a same-origin link whose target was not crawled, and a disabled non-submit button. The model is still asked for journeys. These flows are the floor, and they replace leftover model flows when `maxFlows` is full. No URL is invented.
 
 Output: a `TestPlan { flows: TestFlow[] }`. If the planner produces zero flows (e.g., the explorer found nothing useful), the engine short-circuits with `notes` explaining why.
 
@@ -50,7 +51,7 @@ This is the **one place** in the pipeline where you really benefit from a smart 
 What it does:
 
 - For each flow, opens a fresh browser context with **video recording** enabled.
-- For each step, asks the **runner LLM** *"to satisfy this step on the current page, what tool should I call with what args?"* — `goto`, `click`, `fill`, `assert_text`, `wait_for_selector`, etc.
+- For each step, if the instruction quotes a label that is already visible (`Click "Save order"`, `Fill the "email" field`), runs that control directly. Otherwise asks the **runner LLM** *"to satisfy this step on the current page, what tool should I call with what args?"* — `goto`, `click`, `fill`, `assert_text`, `wait_for_selector`, etc.
 - Executes the chosen tool through Playwright with a per-step timeout.
 - Takes a screenshot **after every step** (success, failure, or blocked).
 - Captures all console errors and failed network requests on the page during the step.

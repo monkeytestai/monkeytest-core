@@ -41,9 +41,9 @@ The parts are saved on `bug.fingerprintParts` (`version: 2`). The tool name and 
 
 `monkeytest diff` and `monkeytest verify` use `fingerprintV2` when both bugs have it, and `fingerprint` otherwise. Switch a stored comparison over to `fingerprintV2` when you are ready. A later major version can make that the default. Until then, `fingerprint` stays the legacy hash.
 
-The CLI also fails a step when the page throws, the document is HTTP 404, the action returns HTTP 5xx, or the control is disabled. `new Monkey(...)` leaves those oracles off, so library callers keep the same bug counts. Pass `strictOracles: true` to opt in. `run.strictOracles` on a single call overrides the constructor.
+The CLI and `new Monkey()` fail a step when the page throws, the document is HTTP 404, the action returns HTTP 5xx, or the control is disabled. Pass `strictOracles: false` to opt out and keep the previous bug counts. `run.strictOracles` on a single call overrides the constructor. `runPlan` still defaults this off unless the caller passes it.
 
-The CLI also fails a passed or skipped step that observed a **same-origin HTTP ≥500** on a document, xhr, or fetch (`--fail-on-5xx`, the default). `--no-fail-on-5xx` leaves that response on the step as evidence. `new Monkey(...)` does not enable this, so a host that depends on today's bug counts stays unchanged until it passes `failOn5xx: true`. Image, font, and third-party 5xx responses are not promoted. `www.example.com` and `example.com` are the same site; a different port is not. `rerun` and `verify` use the same flag, so a 500 that failed the original run still fails the replay.
+The CLI and `new Monkey()` also fail a passed or skipped step that observed a **same-origin HTTP ≥500** on a document, xhr, or fetch (`--fail-on-5xx`, the default). `--no-fail-on-5xx` or `failOn5xx: false` leaves that response on the step as evidence. Image, font, and third-party 5xx responses are not promoted. `www.example.com` and `example.com` are the same site; a different port is not. `rerun` and `verify` use the same flag, so a 500 that failed the original run still fails the replay. A direct `triage(run)` does not promote unless you pass `{ failOn5xx: true }`.
 
 ## `monkeytest rerun`
 

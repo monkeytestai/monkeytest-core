@@ -40,6 +40,81 @@ export interface PageSkeletonForLLM {
   inputs: { label?: string; placeholder?: string; name?: string; type?: string }[];
 }
 
+/**
+ * Execute a step whose wording names a control that is already on screen.
+ *
+ * `Click "Save order"` and `Fill the "email" field` do not need a model.
+ * A step that does not quote a visible label returns null and the caller
+ * falls through to `resolveAction`.
+ */
+export function directActionFromStep(
+  action: string,
+  skeleton: PageSkeletonForLLM,
+): ResolvedAction | null {
+  const fill = action.match(/\bfill(?:\s+in)?\s+the\s+["“]([^"”]+)["”]\s+field/i);
+  if (fill) {
+    const field = fill[1].trim();
+    const input = skeleton.inputs.find(item =>
+      [item.label, item.name, item.placeholder].some(value => (value || '').trim().toLowerCase() === field.toLowerCase()),
+    );
+    if (!input) return null;
+    const target = (input.label || input.name || input.placeholder || field).trim();
+    return {
+      tool: 'fill',
+      locator: input.label ? 'label' : input.placeholder ? 'placeholder' : 'label',
+      target,
+      value: sampleFieldValue(input),
+      rationale: `Field "${field}" is on the page.`,
+    };
+  }
+
+  const quoted = action.match(/(?:click|press|tap)(?:ing)?\s+(?:the\s+)?["“]([^"”]+)["”]/i);
+  const plain = action.match(/^(?:please\s+)?(?:click|press|tap)\s+(?:the\s+)?(.+?)(?:\s+(?:button|link))?[.!]?\s*$/i);
+  const label = (quoted?.[1] || (plain && matchesControl(skeleton, plain[1].trim()) ? plain[1].trim() : '')).trim();
+  if (!label) return null;
+
+  const wantsLink = /\blink\b/i.test(action) && !/\bbutton\b/i.test(action);
+  const button = findText(skeleton.buttons, label);
+  const link = skeleton.links.find(item => item.text.trim().toLowerCase() === label.toLowerCase());
+  if (wantsLink && link) {
+    return clickAction('link', link.text);
+  }
+  if (button && !wantsLink) return clickAction('button', button);
+  if (link) return clickAction('link', link.text);
+  if (button) return clickAction('button', button);
+  return null;
+}
+
+function clickAction(role: 'button' | 'link', label: string): ResolvedAction {
+  return {
+    tool: 'click',
+    locator: 'role',
+    target: `${role}:${label}`,
+    rationale: `${role} "${label}" is on the page.`,
+  };
+}
+
+function matchesControl(skeleton: PageSkeletonForLLM, label: string): boolean {
+  return Boolean(findText(skeleton.buttons, label) || skeleton.links.some(link => link.text.trim().toLowerCase() === label.toLowerCase()));
+}
+
+function findText(values: string[], label: string): string | undefined {
+  const needle = label.trim().toLowerCase();
+  return values.find(value => value.trim().toLowerCase() === needle);
+}
+
+function sampleFieldValue(input: { label?: string; placeholder?: string; name?: string; type?: string }): string {
+  const blob = `${input.type || ''} ${input.name || ''} ${input.label || ''} ${input.placeholder || ''}`.toLowerCase();
+  if (blob.includes('email')) return 'qa@example.com';
+  if (blob.includes('phone') || blob.includes('tel')) return '555-0100';
+  if (blob.includes('url') || blob.includes('website')) return 'https://example.com';
+  if (/\bdate\b/.test(blob)) return '2026-01-15';
+  if (input.type === 'number' || blob.includes('qty') || blob.includes('quantity')) return '1';
+  if (blob.includes('message') || blob.includes('comment') || input.type === 'textarea') return 'Hello from monkeytest';
+  if (blob.includes('name')) return 'Test User';
+  return 'test';
+}
+
 export async function resolveAction(
   llm: LLM,
   flow: TestFlow,

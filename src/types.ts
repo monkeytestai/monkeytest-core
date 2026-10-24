@@ -102,6 +102,21 @@ export interface SiteMapForm {
   submitLabel?: string;
 }
 
+/**
+ * A button or link scraped from the DOM. Absent when the crawler did not
+ * see the attribute. Hosts that do not know this type can ignore
+ * `SiteMapPage.controls`.
+ */
+export interface SiteMapControl {
+  kind: 'button' | 'link';
+  /** Visible label, trimmed. */
+  label: string;
+  /** Absolute href for a link, when the browser resolved one. */
+  href?: string;
+  /** True when the control is disabled. Omitted when it is enabled. */
+  disabled?: boolean;
+}
+
 export interface SiteMapPage {
   url: string;
   title: string;
@@ -116,6 +131,12 @@ export interface SiteMapPage {
    * Additive: existing readers can ignore it.
    */
   forms?: SiteMapForm[];
+  /**
+   * Buttons and links scraped from the DOM. Omitted when the page has none.
+   * Additive: existing readers can ignore it. The planner uses this list to
+   * exercise fault surfaces without asking the model to invent controls.
+   */
+  controls?: SiteMapControl[];
   /** Whether the page seems to require authentication. */
   authGated: boolean;
   /** Absolute path to the screenshot taken of this page, if requested. */

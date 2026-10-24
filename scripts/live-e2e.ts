@@ -8,9 +8,13 @@
  *
  * Exit 1 from `monkeytest run` and `rerun` means blocking bugs were found.
  * Exit 0 from the buggy run means the model missed the fixture.
+ *
+ * The demo server lives in this process. The CLI must be an asynchronous
+ * child (`spawn`). `spawnSync` freezes the event loop, the server cannot
+ * answer, and the crawl times out on the homepage with an empty run.
  */
 
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDemoServer } from '../test/fixtures/demo-app/server.ts';
@@ -41,20 +45,49 @@ function stripSecrets(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return next;
 }
 
-function monkey(args: string[], env: NodeJS.ProcessEnv): SpawnSyncReturns<string> {
-  log(`$ node dist/cli.js ${args.join(' ')}`);
-  const result = spawnSync(process.execPath, ['dist/cli.js', ...args], {
-    cwd: process.cwd(),
-    env,
-    encoding: 'utf8',
-    timeout: 12 * 60 * 1000,
-  });
-  if (result.stdout) appendFileSync(LOG, result.stdout.endsWith('\n') ? result.stdout : `${result.stdout}\n`);
-  if (result.stderr) appendFileSync(LOG, result.stderr.endsWith('\n') ? result.stderr : `${result.stderr}\n`);
-  return result;
+interface ChildResult {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  error?: Error;
 }
 
-function statusOf(result: SpawnSyncReturns<string>, command: string): number {
+function monkey(args: string[], env: NodeJS.ProcessEnv): Promise<ChildResult> {
+  log(`$ node dist/cli.js ${args.join(' ')}`);
+  return new Promise(resolve => {
+    const child: ChildProcess = spawn(process.execPath, ['dist/cli.js', ...args], {
+      cwd: process.cwd(),
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    child.stdout?.on('data', chunk => out.push(Buffer.from(chunk)));
+    child.stderr?.on('data', chunk => err.push(Buffer.from(chunk)));
+    let settled = false;
+    let spawnError: Error | undefined;
+    const timer = setTimeout(() => { child.kill('SIGKILL'); }, 12 * 60 * 1000);
+    const finish = (status: number | null, signal: NodeJS.Signals | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const stdout = Buffer.concat(out).toString('utf8');
+      const stderr = Buffer.concat(err).toString('utf8');
+      if (stdout) appendFileSync(LOG, stdout.endsWith('\n') ? stdout : `${stdout}\n`);
+      if (stderr) appendFileSync(LOG, stderr.endsWith('\n') ? stderr : `${stderr}\n`);
+      log(`child exit ${status ?? 'null'}${signal ? ` signal ${signal}` : ''}`);
+      resolve({ status, signal, stdout, stderr, ...(spawnError ? { error: spawnError } : {}) });
+    };
+    child.once('error', error => {
+      spawnError = error;
+      setTimeout(() => finish(null, null), 50);
+    });
+    child.once('close', (status, signal) => finish(status, signal));
+  });
+}
+
+function statusOf(result: ChildResult, command: string): number {
   if (result.error) throw new Error(`${command} failed to start: ${result.error.message}`);
   if (result.status === null) throw new Error(`${command} was killed (${result.signal || 'no status'})`);
   return result.status;
@@ -108,7 +141,7 @@ async function main(): Promise<void> {
   const demo = await startDemoServer({ mode: 'buggy' });
   log(`fixture ${demo.getMode()} ${demo.url} provider=${provider} model=${model}`);
   try {
-    const run = monkey([
+    const run = await monkey([
       'run', demo.url,
       '--provider', provider,
       '--model', model,
@@ -132,7 +165,7 @@ async function main(): Promise<void> {
     }
 
     const stripped = stripSecrets(process.env);
-    const replay = monkey(['rerun', runId, '--dir', DIR, '--json'], stripped);
+    const replay = await monkey(['rerun', runId, '--dir', DIR, '--json'], stripped);
     const replayStatus = statusOf(replay, 'rerun');
     log(`rerun exit ${replayStatus}`);
     if (replayStatus >= 2) {
@@ -142,7 +175,7 @@ async function main(): Promise<void> {
       throw new Error(`rerun exited ${replayStatus}; expected 1 while the fixture is still buggy`);
     }
 
-    const broken = monkey(['verify', runId, '--dir', DIR, '--json'], stripped);
+    const broken = await monkey(['verify', runId, '--dir', DIR, '--json'], stripped);
     const brokenStatus = statusOf(broken, 'verify');
     const brokenReport = parseVerify(broken.stdout || '');
     log(`verify buggy exit ${brokenStatus} still_broken=${brokenReport.stats?.still_broken ?? 0}`);
@@ -155,7 +188,7 @@ async function main(): Promise<void> {
       throw new Error('failed to switch the fixture to the fixed variant');
     }
 
-    const fixed = monkey(['verify', runId, '--dir', DIR, '--json'], stripped);
+    const fixed = await monkey(['verify', runId, '--dir', DIR, '--json'], stripped);
     const fixedStatus = statusOf(fixed, 'verify');
     const fixedReport = parseVerify(fixed.stdout || '');
     const lingering = (fixedReport.results || []).filter(result =>

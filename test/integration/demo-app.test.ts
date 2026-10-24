@@ -37,7 +37,7 @@ describe('demo app seeded bugs', () => {
     await demo.close();
   });
 
-  it('leaves the seeded failures unreported when strict oracles are off', async () => {
+  it('leaves the seeded failures unreported when strict oracles and fail-on-5xx are off', async () => {
     await fetch(`${demo.url}/__monkeytest/mode`, { method: 'POST', body: 'buggy' });
     const run = await execute(demo.url, shots, llm, false);
     expect(run.bugs).toHaveLength(0);

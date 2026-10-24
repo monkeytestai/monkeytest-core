@@ -86,6 +86,8 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, {
 | `stepTimeoutMs` | `15000` | Per-step navigation/action timeout. |
 | `flowTimeoutMs` | `180000` | Hard cap on a flow's wall clock. |
 | `headless` | `true` | Set `false` to watch flows run. |
+| `strictOracles` | off on `runPlan`; **on** via `new Monkey()` | Fail a step on a page error, a document HTTP 404, an action HTTP ≥500, or a disabled control. |
+| `failOn5xx` | off on `runPlan`; **on** via `new Monkey()` | Also fail a passed or skipped step that saw a same-origin HTTP ≥500 (document, xhr, or fetch). |
 | `onEvent` | (none) | Legacy per-step callback. Same data as the runner-phase events on `events`. |
 | `events` | (none) | `EventBus`. |
 

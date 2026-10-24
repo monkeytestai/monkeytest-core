@@ -45,7 +45,7 @@ features:
 </style>
 
 ::: info Install
-`npm install @monkeytestai/monkeytest-core` (version 0.4.0, [npm](https://www.npmjs.com/package/@monkeytestai/monkeytest-core)). The [quick start](/guide/quick-start) also covers a clone and a no-key smoke test. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
+`npm install @monkeytestai/monkeytest-core` (version 0.4.1, [npm](https://www.npmjs.com/package/@monkeytestai/monkeytest-core)). The [quick start](/guide/quick-start) also covers a clone and a no-key smoke test. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
 :::
 
 ## Why MonkeyTest Core?

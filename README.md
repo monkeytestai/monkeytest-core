@@ -79,7 +79,7 @@ npm install @monkeytestai/monkeytester
 npx playwright install chromium
 ```
 
-[@monkeytestai/monkeytester](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0** is the published package. The CLI is `npx monkeytest`.
+[@monkeytestai/monkeytester](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.1** is the published package. The CLI is `npx monkeytest`.
 
 ```bash
 export GEMINI_API_KEY="paste-your-key"

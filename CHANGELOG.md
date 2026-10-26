@@ -34,12 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A model site summary that does not match the schema no longer aborts exploration. `authSurfaces` and `publicJourneys` accept a string or an object with `url` / `label` / `name` / `path` and are stored as `string[]`. The same coercion covers the other structured-output calls (per-page summary, planner salvage, bug polish, runner tool choice): string booleans, one object where an array was asked for, enum case and a few tool aliases, over-long polish fields clipped to the limit, and a single planner flow or step object. When the site summary still cannot be read, the crawl keeps the pages it already visited, fills a basic map from titles and URLs, and continues. `SiteMap.warnings` and the `explore.warning` event carry a short sentence safe to show in a report. The parser error stays in the server log and on `data.detail`. Per-page summary failures use the same warning instead of writing the schema error into the page summary.
 - The release workflow grants `contents: write` so it can open the GitHub release after npm publish. Provenance still uses `id-token: write`. The release install command uses the package version with the leading `v` removed.
 - A valid planner response can no longer drop a public form the crawl already saw. The form-submit flow is a reserved slot: shopping-only plans, and plans whose only submit is a vague "submit" on that page, still include the grounded flow and its action URL (for example `/api/contact`). Fault-surface flows cannot take that slot. Help, contact, and about reads are dropped only after shop flows. `SiteMapForm.inputs` optionally records label, name, placeholder, and type; `fields` is unchanged. Fill steps use that label, then a `name` CSS selector, instead of an invented placeholder such as `placeholder:Email`.
 - Replay and verify keep going when a step the original run already marked `skipped` has a locator that still misses. A soft skip (for example a placeholder fill that never matched) no longer becomes `locator_mismatch` and hides a later bug, such as a form POST that returned HTTP 500. A step that originally passed or failed still stops the flow. Fingerprints are unchanged.
 - A planner model response that is invalid JSON, fails schema validation, or includes a flow with empty `steps` no longer wipes the plan. Usable model flows are kept. The public-form submit flow and scraped fault-control flows are still added, up to `maxFlows`. `plan()` records the model error on `TestPlan.notes` and emits `engine.error`. `executeAndTriage` runs that plan. An empty plan remains only when the crawl has no public form and no fault control. `RunResult` fields are unchanged. `groundedTestPlan(siteMap, maxFlows)` is the same crawl-only floor, for a host that catches a planner failure itself.
 - The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
+
+## [0.5.1] — 2026-10-26
+
+### Fixed
+
+- A model site summary that does not match the schema no longer aborts exploration. `authSurfaces` and `publicJourneys` accept a string or an object with `url` / `label` / `name` / `path` and are stored as `string[]`. The same coercion covers the other structured-output calls (per-page summary, planner salvage, bug polish, runner tool choice): string booleans, one object where an array was asked for, enum case and a few tool aliases, over-long polish fields clipped to the limit, and a single planner flow or step object. When the site summary still cannot be read, the crawl keeps the pages it already visited, fills a basic map from titles and URLs, and continues. `SiteMap.warnings` and the `explore.warning` event carry a short sentence safe to show in a report. The parser error stays in the server log and on `data.detail`. Per-page summary failures use the same warning instead of writing the schema error into the page summary.
 
 ## [0.5.0] — 2026-10
 
@@ -166,6 +171,7 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
+[0.5.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.1
 [0.5.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.0
 [0.4.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.4.1
 [0.4.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.4.0

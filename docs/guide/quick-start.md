@@ -1,6 +1,6 @@
 # Quick start
 
-[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0** is on npm.
+[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.1** is on npm.
 
 ```bash
 npm install @monkeytestai/monkeytester

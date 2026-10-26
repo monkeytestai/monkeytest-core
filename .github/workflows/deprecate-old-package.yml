@@ -1,0 +1,30 @@
+name: Deprecate old package name
+
+# Manual, one-shot job. After this file is on main, run it once from
+# Actions → Deprecate old package name. It marks every published version
+# of @monkeytestai/monkeytest-core as deprecated and points installs at
+# @monkeytestai/monkeytester.
+#
+# Uses the existing NPM_TOKEN secret (npm Automation token with access
+# to @monkeytestai/*), the same secret the release workflow publishes with.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deprecate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Deprecate @monkeytestai/monkeytest-core
+        run: 'npm deprecate "@monkeytestai/monkeytest-core@*" "Package renamed to @monkeytestai/monkeytester. Use: npm install @monkeytestai/monkeytester"'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

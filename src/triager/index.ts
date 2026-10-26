@@ -25,6 +25,7 @@
  */
 
 import { z } from 'zod';
+import { clipText, coerceProse, unwrapModelObject } from '../llm/coerce.js';
 import type { LLM } from '../llm/index.js';
 import type {
   RunResult,
@@ -303,12 +304,29 @@ function explain(step: StepResult): string {
  *   - If the LLM returns garbage, throw — the caller falls back to the
  *     rule-based copy.
  */
-const PolishedSchema = z.object({
+function polishField(value: unknown, min: number, max: number): unknown {
+  const text = coerceProse(value);
+  if (!text) return value;
+  const clipped = clipText(text, max);
+  return clipped.length >= min ? clipped : text;
+}
+
+export const PolishedBugSchema = z.preprocess((value) => {
+  const unwrapped = unwrapModelObject(value, ['title', 'observed', 'expected', 'triageNotes']);
+  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) return unwrapped;
+  const record = unwrapped as Record<string, unknown>;
+  return {
+    title: polishField(record.title ?? record.name, 8, 120),
+    observed: polishField(record.observed ?? record.actual, 8, 600),
+    expected: polishField(record.expected ?? record.expectation, 8, 400),
+    triageNotes: polishField(record.triageNotes ?? record.notes ?? record.triage_notes, 8, 600),
+  };
+}, z.object({
   title: z.string().min(8).max(120),
   observed: z.string().min(8).max(600),
   expected: z.string().min(8).max(400),
   triageNotes: z.string().min(8).max(600),
-});
+}));
 
 const POLISH_SYSTEM = `You are a senior QA engineer rewriting an automated bug report so it reads like a human-authored ticket.
 
@@ -321,6 +339,7 @@ Rules:
   - "triageNotes" gives a senior engineer the next step: what to look at, what likely caused it (selector/timing/network/server). 1–3 sentences.
   - NEVER invent details. If the evidence doesn't say it, don't claim it.
   - NEVER restate the JSON keys, the bug id, or the words "critical/major/minor".
+  - Every field is a single string. Do not wrap a field in an object or array.
 
 Respond with a single JSON object: { "title", "observed", "expected", "triageNotes" }.`;
 
@@ -358,12 +377,13 @@ ${evidenceLines.split('\n').map(l => `    ${l}`).join('\n')}
 
 Rewrite. Same JSON shape.`;
 
-  const polished = await llm.generateJSON({
+  const raw = await llm.generateJSON({
     label: 'triager.polish',
     system: POLISH_SYSTEM,
     prompt: userPrompt,
-    schema: PolishedSchema,
+    schema: PolishedBugSchema,
   });
+  const polished = PolishedBugSchema.parse(raw);
 
   return {
     ...bug,

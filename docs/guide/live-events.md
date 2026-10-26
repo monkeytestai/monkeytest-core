@@ -49,7 +49,8 @@ interface LiveEvent {
 | `explore.page_visited` | explorer | Per-page success. `data.url`, `data.title`. |
 | `explore.page_failed` | explorer | Per-page failure. `data.url`, `data.reason`. |
 | `explore.screenshot` | explorer | A page screenshot was written. `data.path`. |
-| `explore.complete` | explorer | Site map ready. `data.pages`, `data.failed`. |
+| `explore.warning` | explorer | A model summary was incomplete and the crawl continued. `message` is safe to show. `data.detail` is the parser error for logs, not for end users. |
+| `explore.complete` | explorer | Site map ready. `data.pages`, `data.failed`. `data.warnings` repeats any `explore.warning` messages. |
 | `plan.start` | planner | Asking the LLM for a plan. |
 | `plan.complete` | planner | Plan ready. `data.flows`. |
 | `plan.skipped` | planner | No flows produced. `data.reason`. |

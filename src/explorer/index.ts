@@ -35,6 +35,16 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
+import {
+  clipText,
+  coerceBoolean,
+  coerceEnum,
+  coerceProse,
+  coerceStringList,
+  coerceToString,
+  logModelDetail,
+  unwrapModelObject,
+} from '../llm/coerce.js';
 import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapPage, SiteMapInteractive } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import {
@@ -45,6 +55,7 @@ import {
   FORM_SURFACE_TEXT_SOURCE,
   isFormSurfaceLink,
   linksOnCrawlSite,
+  looksLikeAuthUrl,
   pickNextCrawlUrl,
   rememberVisited,
   selectOutboundLinks,
@@ -89,6 +100,7 @@ export async function explore(
   const queue: CrawlQueueItem[] = [{ url: start, surface: isFormSurfaceLink({ url: start }) }];
   const pages: SiteMapPage[] = [];
   const failures: { url: string; reason: string }[] = [];
+  const warnings: string[] = [];
   let authUrlsQueued = 0;
   let surfaceVisited = 0;
 
@@ -174,17 +186,17 @@ export async function explore(
         try {
           summary = await summarisePageWithLLM(llm, url, skeleton);
         } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          opts.onPage?.({
-            url,
-            title: skeleton.title,
-            summary: `(LLM summary unavailable: ${reason.slice(0, 120)})`,
-            interactive: [],
-            outboundLinks: [],
-            authGated: false,
+          const detail = err instanceof Error ? err.message : String(err);
+          logModelDetail(`explorer.summarisePage ${url}`, detail);
+          const message = `Page summary from the model was incomplete for ${url}; continuing with the page title.`;
+          warnings.push(message);
+          events.emit({
+            phase: 'explorer', type: 'explore.warning',
+            message,
+            data: { url, detail },
           });
           summary = {
-            summary: skeleton.title || `Page at ${url} (LLM summary unavailable)`,
+            summary: skeleton.title || `Page at ${url}`,
             interactive: [],
             authGated: false,
           };
@@ -243,7 +255,14 @@ export async function explore(
 
     }
 
-    const overall = await summariseSiteWithLLM(llm, startUrl, pages);
+    const overall = await summariseSiteBestEffort(llm, startUrl, pages, (message, detail) => {
+      warnings.push(message);
+      events.emit({
+        phase: 'explorer', type: 'explore.warning',
+        message,
+        data: { detail },
+      });
+    });
 
     events.emit({
       phase: 'explorer', type: 'explore.complete',
@@ -253,6 +272,7 @@ export async function explore(
         siteType: overall.siteType,
         pagesVisited: pages.length,
         pagesFailed: failures.length,
+        ...(warnings.length ? { warnings } : {}),
       },
     });
 
@@ -266,6 +286,7 @@ export async function explore(
       pages,
       pendingUrls: queue.map(item => item.url),
       failedUrls: failures,
+      ...(warnings.length ? { warnings } : {}),
     };
 
   } finally {
@@ -441,15 +462,73 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
 
 /* ── LLM: per-page summary ────────────────────────────────────────────── */
 
-const PageSummarySchema = z.object({
-  summary: z.string().min(3),
-  authGated: z.boolean(),
-  interactive: z.array(z.object({
-    kind: z.enum(['form', 'button', 'link', 'input', 'menu']),
-    label: z.string().min(1),
-    selector: z.string().optional(),
-  })).optional(),
+const INTERACTIVE_KINDS = ['form', 'button', 'link', 'input', 'menu'] as const;
+const INTERACTIVE_KIND_ALIASES: Record<string, typeof INTERACTIVE_KINDS[number]> = {
+  cta: 'button',
+  submit: 'button',
+  anchor: 'link',
+  hyperlink: 'link',
+  textbox: 'input',
+  field: 'input',
+  textarea: 'input',
+  dropdown: 'menu',
+  nav: 'menu',
+  navigation: 'menu',
+};
+
+const InteractiveItemSchema = z.object({
+  kind: z.enum(INTERACTIVE_KINDS),
+  label: z.string().min(1).max(80),
+  selector: z.string().min(1).max(200).optional(),
 });
+
+function coerceInteractiveItem(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  const kind = coerceEnum(record.kind ?? record.type ?? record.role, INTERACTIVE_KINDS, INTERACTIVE_KIND_ALIASES);
+  const label = coerceProse(record.label ?? record.name ?? record.text ?? record.title);
+  const selector = coerceToString(record.selector ?? record.css);
+  return {
+    ...(kind ? { kind } : {}),
+    ...(label ? { label: clipText(label, 80) } : {}),
+    ...(selector ? { selector: clipText(selector, 200) } : {}),
+  };
+}
+
+function coerceInteractiveList(value: unknown): SiteMapInteractive[] | undefined {
+  if (value == null) return undefined;
+  const rawList = Array.isArray(value) ? value.flat(2) : [value];
+  const items: SiteMapInteractive[] = [];
+  for (const item of rawList) {
+    const parsed = InteractiveItemSchema.safeParse(coerceInteractiveItem(item));
+    if (!parsed.success) continue;
+    items.push(parsed.data.selector
+      ? parsed.data
+      : { kind: parsed.data.kind, label: parsed.data.label });
+    if (items.length >= 10) break;
+  }
+  return items;
+}
+
+export const PageSummarySchema = z.preprocess(
+  (value) => unwrapModelObject(value, ['summary', 'authGated', 'interactive']),
+  z.object({
+    summary: z.preprocess(
+      (value) => {
+        const text = coerceProse(value);
+        return text ? clipText(text, 400) : value;
+      },
+      z.string().min(3).max(400),
+    ),
+    // Unrecognised values become false. The previous failure path stored false
+    // anyway and dropped the sentence; keeping the sentence is more useful.
+    authGated: z.preprocess((value) => coerceBoolean(value) ?? false, z.boolean()),
+    interactive: z.preprocess(
+      (value) => coerceInteractiveList(value) ?? [],
+      z.array(InteractiveItemSchema).max(10),
+    ),
+  }),
+);
 
 async function summarisePageWithLLM(
   llm: LLM,
@@ -461,12 +540,12 @@ async function summarisePageWithLLM(
 You are a QA analyst inspecting a single web page during an exploratory crawl.
 Based on the page metadata below, return JSON with three fields:
 
-  - "summary": one sentence (max 30 words) naming the page's job for a visitor (e.g. "CRED marketing homepage promoting credit-card rewards").
-  - "authGated": boolean — true if the page is a login/OTP wall, or clearly requires an existing session. A marketing page that merely links to Sign in is NOT auth-gated.
-  - "interactive": up to 10 of the most important interactive elements a tester should care about (primary CTAs first). Each item has:
-        kind     — one of "form" | "button" | "link" | "input" | "menu"
-        label    — the human-readable label or visible text (max 60 chars)
-        selector — optional CSS selector if you can confidently infer one (otherwise omit)
+  - "summary": one sentence (max 30 words) naming the page's job for a visitor (e.g. "CRED marketing homepage promoting credit-card rewards"). A string, not an object.
+  - "authGated": boolean true or false — true only if the page is a login/OTP wall, or clearly requires an existing session. A marketing page that merely links to Sign in is NOT auth-gated. Do not send "yes"/"no" strings; use JSON booleans.
+  - "interactive": an array of up to 10 important elements (primary CTAs first). Each item is an object, never a bare string:
+        kind     — exactly one of "form" | "button" | "link" | "input" | "menu" (lowercase)
+        label    — a short string (max 60 chars)
+        selector — optional CSS selector string. Omit the key if you are not sure. Do not send null.
 
 URL: ${url}
 Title: ${skeleton.title}
@@ -486,11 +565,12 @@ ${skeleton.visibleText || '(empty)'}
 Reply with JSON only.
 `;
 
-  const parsed = await llm.generateJSON({
+  const raw = await llm.generateJSON({
     label: 'explorer.summarisePage',
     prompt,
     schema: PageSummarySchema,
   });
+  const parsed = PageSummarySchema.parse(raw);
 
   return {
     summary: parsed.summary,
@@ -502,19 +582,56 @@ Reply with JSON only.
 
 /* ── LLM: whole-site summary ──────────────────────────────────────────── */
 
-const SiteSummarySchema = z.object({
-  siteType: z.string().min(2),
-  summary: z.string().min(3),
-  productName: z.string().min(1).nullish(),
-  publicJourneys: z.array(z.string().min(3)).max(6).nullish(),
-  authSurfaces: z.array(z.string().min(2)).max(6).nullish(),
-});
+const SITE_SUMMARY_FALLBACK_WARNING =
+  'Site summary from the model was incomplete; continuing with a basic map of the site.';
+
+function llmProseField(min: number, max: number) {
+  return z.preprocess((value) => {
+    const text = coerceProse(value);
+    return text ? clipText(text, max) : value;
+  }, z.string().min(min).max(max));
+}
+
+function llmOptionalProse(max: number) {
+  return z.preprocess((value) => {
+    if (value == null || value === '') return undefined;
+    const text = coerceProse(value);
+    return text ? clipText(text, max) : undefined;
+  }, z.string().min(1).max(max).optional());
+}
+
+function llmStringListField(minLength: number, maxItems: number) {
+  return z.preprocess((value) => {
+    if (value == null) return undefined;
+    const list = coerceStringList(value, { minLength, maxItems });
+    return list ?? undefined;
+  }, z.array(z.string().min(minLength)).max(maxItems).optional());
+}
+
+export const SiteSummarySchema = z.preprocess(
+  (value) => unwrapModelObject(value, ['siteType', 'summary', 'authSurfaces', 'publicJourneys', 'productName']),
+  z.object({
+    siteType: llmProseField(2, 80),
+    summary: llmProseField(3, 1200),
+    productName: llmOptionalProse(120),
+    publicJourneys: llmStringListField(3, 6),
+    authSurfaces: llmStringListField(2, 6),
+  }),
+);
+
+interface SiteSummaryFields {
+  siteType: string;
+  summary: string;
+  productName?: string;
+  publicJourneys?: string[];
+  authSurfaces?: string[];
+}
 
 async function summariseSiteWithLLM(
   llm: LLM,
   startUrl: string,
   pages: SiteMapPage[]
-): Promise<{ siteType: string; summary: string; productName?: string; publicJourneys?: string[]; authSurfaces?: string[] }> {
+): Promise<SiteSummaryFields> {
 
   if (pages.length === 0){
     return { siteType: 'unknown', summary: 'No pages were successfully visited.' };
@@ -525,14 +642,15 @@ You just finished exploring a website as an anonymous visitor (you never logged 
 Understand the product, then describe it so a QA architect can design real user tests.
 
 Return JSON:
-  - "siteType": short category, e.g. "ecommerce", "fintech consumer app", "saas marketing site",
+  - "siteType": short category string, e.g. "ecommerce", "fintech consumer app", "saas marketing site",
                 "blog", "documentation", "marketplace", "internal tool", "other".
-  - "productName": brand or product name if obvious, else omit.
-  - "summary":  2–3 sentences (max 90 words): what the product does, who the visitor is,
+  - "productName": brand or product name string if obvious, else omit the key.
+  - "summary":  a string of 2–3 sentences (max 90 words): what the product does, who the visitor is,
                 and which jobs they can complete WITHOUT an account.
-  - "publicJourneys": up to 5 concrete anonymous journeys grounded in the pages below
-                (e.g. "Read credit-card benefits and open Apply"). Do not invent pages.
-  - "authSurfaces": login / signup / OTP walls you noticed. Empty array if none.
+  - "publicJourneys": an array of up to 5 short strings. Each item is one sentence
+                (e.g. "Read credit-card benefits and open Apply"), never an object. Do not invent pages.
+  - "authSurfaces": an array of short strings only, one per login / signup / OTP wall
+                (e.g. "Login (/login)"). Never objects with url/label keys. Empty array if none.
 
 Start URL: ${startUrl}
 
@@ -542,12 +660,37 @@ ${pages.map(p => `  - ${p.url}\n      title: ${p.title}\n      auth-gated: ${p.a
 Reply with JSON only.
 `;
 
-  const parsed = await llm.generateJSON({
+  const raw = await llm.generateJSON({
     label: 'explorer.summariseSite',
     prompt,
     schema: SiteSummarySchema,
   });
+  return normaliseSiteSummary(SiteSummarySchema.parse(raw));
 
+}
+
+/**
+ * Whole-site summary is best-effort. A schema miss used to abort the crawl
+ * after every page had already been visited. Keep the pages and substitute a
+ * map built from titles and URLs.
+ */
+async function summariseSiteBestEffort(
+  llm: LLM,
+  startUrl: string,
+  pages: SiteMapPage[],
+  onFallback: (message: string, detail: string) => void,
+): Promise<SiteSummaryFields> {
+  try {
+    return await summariseSiteWithLLM(llm, startUrl, pages);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    logModelDetail('explorer.summariseSite', detail);
+    onFallback(SITE_SUMMARY_FALLBACK_WARNING, detail);
+    return fallbackSiteSummary(startUrl, pages);
+  }
+}
+
+function normaliseSiteSummary(parsed: z.infer<typeof SiteSummarySchema>): SiteSummaryFields {
   return {
     siteType: parsed.siteType,
     summary: parsed.summary,
@@ -555,7 +698,81 @@ Reply with JSON only.
     publicJourneys: parsed.publicJourneys ?? undefined,
     authSurfaces: parsed.authSurfaces ?? undefined,
   };
+}
 
+/** Crawl metadata when the model summary cannot be used. No page is invented. */
+export function fallbackSiteSummary(startUrl: string, pages: SiteMapPage[]): SiteSummaryFields {
+  if (pages.length === 0) {
+    return { siteType: 'unknown', summary: 'No pages were successfully visited.' };
+  }
+  const host = hostOf(startUrl);
+  const titles = uniqueStrings(pages.map(page => page.title.trim()).filter(title => title.length >= 2)).slice(0, 4);
+  const blurbs = pages.map(pageBlurb).filter((line): line is string => Boolean(line)).slice(0, 3);
+  const lead = `Explored ${pages.length} page${pages.length === 1 ? '' : 's'} on ${host}.`;
+  const summary = clipText(
+    blurbs.length
+      ? `${lead} ${blurbs.join(' ')}`
+      : `${lead}${titles.length ? ` Pages include ${titles.join(', ')}.` : ''}`,
+    600,
+  );
+  const publicJourneys = uniqueStrings(pages.filter(page => !page.authGated).map(page => {
+    const label = page.title.trim() || pathLabel(page.url);
+    return label.length >= 3 ? `Visit ${label}` : '';
+  })).slice(0, 5);
+  const authSurfaces = uniqueStrings(pages.filter(page => page.authGated || looksLikeAuthUrl(page.url)).map(page => {
+    const label = page.title.trim();
+    if (label.length >= 2) return `${label} (${page.url})`;
+    return page.url.length >= 2 ? page.url : '';
+  })).slice(0, 6);
+  return {
+    siteType: inferSiteType(startUrl, pages),
+    summary,
+    ...(publicJourneys.length ? { publicJourneys } : {}),
+    ...(authSurfaces.length ? { authSurfaces } : {}),
+  };
+}
+
+function pageBlurb(page: SiteMapPage): string | undefined {
+  const summary = page.summary.trim();
+  if (summary.length < 3) return undefined;
+  if (/schema|LLM summary unavailable|did not match/i.test(summary)) return undefined;
+  if (summary === page.title.trim()) return undefined;
+  return summary;
+}
+
+function inferSiteType(startUrl: string, pages: SiteMapPage[]): string {
+  const blob = [startUrl, ...pages.map(page => `${page.url} ${page.title} ${page.summary}`)].join(' ').toLowerCase();
+  if (/\b(cart|checkout|product|shop|store)\b/.test(blob)) return 'ecommerce';
+  if (/\b(docs|documentation|api reference)\b/.test(blob)) return 'documentation';
+  if (/\bblog\b/.test(blob)) return 'blog';
+  if (/\b(pricing|dashboard|sign in|log in)\b/.test(blob)) return 'saas marketing site';
+  return 'website';
+}
+
+function hostOf(startUrl: string): string {
+  try { return new URL(startUrl).hostname.replace(/^www\./, ''); }
+  catch { return startUrl; }
+}
+
+function pathLabel(value: string): string {
+  try {
+    const path = new URL(value).pathname.replace(/\/+$/, '');
+    const last = path.split('/').filter(Boolean).pop();
+    return last || '';
+  } catch {
+    return '';
+  }
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */

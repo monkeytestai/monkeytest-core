@@ -11,6 +11,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { LLM } from '../llm/index.js';
+import { logModelDetail } from '../llm/coerce.js';
 import type {
   FlowResult,
   FlowStatus,
@@ -305,7 +306,23 @@ async function playStep(
   }
 
   if (opts.heal && opts.llm && recorded.action){
-    const healed = await healStep(page, trace, recorded, opts.llm);
+    let healed: ResolvedAction;
+    try {
+      healed = await healStep(page, trace, recorded, opts.llm);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      logModelDetail('runner.resolveAction', detail);
+      return {
+        action: actionFromRecorded(recorded),
+        locator: recorded.locator,
+        resolution: 'recorded',
+        outcome: {
+          status: 'failed',
+          observation: 'Recorded locator no longer matches, and the model could not propose a replacement.',
+          error: 'locator_mismatch',
+        },
+      };
+    }
     const outcome = await executeAction(page, healed, timeoutMs, { strictOracles: opts.strictOracles });
     const locator = await captureLocator(page, healed).catch(() => undefined);
     return {

@@ -186,6 +186,12 @@ export interface SiteMap {
   publicJourneys?: string[];
   /** Login / signup / OTP surfaces noticed but not entered. */
   authSurfaces?: string[];
+  /**
+   * User-facing notes when a model response was incomplete and the crawl
+   * continued with a fallback. Omitted when every summary parsed. Hosts can
+   * show these strings as-is. Technical parser errors are not included.
+   */
+  warnings?: string[];
   pages: SiteMapPage[];
   /** Pages the explorer noticed but did not actually visit. */
   pendingUrls: string[];

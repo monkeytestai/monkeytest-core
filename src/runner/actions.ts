@@ -5,6 +5,7 @@
 
 import type { Locator, Page } from 'playwright';
 import { z } from 'zod';
+import { clipText, coerceEnum, coerceToString, unwrapModelObject } from '../llm/coerce.js';
 import type { LLM } from '../llm/index.js';
 import type {
   TestFlow,
@@ -14,8 +15,56 @@ import type {
   TraceLocatorStrategy,
 } from '../types.js';
 
-export const ActionSchema = z.object({
-  tool: z.enum(['click', 'fill', 'goto', 'wait', 'assert_text', 'press', 'noop']),
+const ACTION_TOOLS = ['click', 'fill', 'goto', 'wait', 'assert_text', 'press', 'noop'] as const;
+const ACTION_LOCATORS = ['css', 'role', 'text', 'placeholder', 'label', 'testid'] as const;
+
+const TOOL_ALIASES: Record<string, typeof ACTION_TOOLS[number]> = {
+  type: 'fill',
+  input: 'fill',
+  fill_in: 'fill',
+  navigate: 'goto',
+  open: 'goto',
+  visit: 'goto',
+  assert: 'assert_text',
+  asserttext: 'assert_text',
+  check_text: 'assert_text',
+  keypress: 'press',
+  key: 'press',
+  none: 'noop',
+  skip: 'noop',
+  tap: 'click',
+  wait_for: 'wait',
+};
+
+const LOCATOR_ALIASES: Record<string, typeof ACTION_LOCATORS[number]> = {
+  css_selector: 'css',
+  selector: 'css',
+  visible_text: 'text',
+  test_id: 'testid',
+  data_testid: 'testid',
+  aria_label: 'label',
+};
+
+function coerceActionInput(value: unknown): unknown {
+  const unwrapped = unwrapModelObject(value, ['tool', 'action', 'target', 'selector']);
+  if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) return unwrapped;
+  const record = unwrapped as Record<string, unknown>;
+  const tool = coerceEnum(record.tool ?? record.action, ACTION_TOOLS, TOOL_ALIASES);
+  const locator = coerceEnum(record.locator ?? record.strategy, ACTION_LOCATORS, LOCATOR_ALIASES);
+  const target = coerceToString(record.target ?? record.selector ?? record.url ?? record.element);
+  const filled = coerceToString(record.value ?? record.input ?? record.key);
+  const rationale = coerceToString(record.rationale ?? record.reason);
+  return {
+    ...(tool ? { tool } : {}),
+    ...(locator ? { locator } : {}),
+    ...(target ? { target } : {}),
+    ...(filled !== undefined ? { value: filled } : {}),
+    ...(rationale ? { rationale: clipText(rationale, 400) } : {}),
+  };
+}
+
+export const ActionSchema = z.preprocess(coerceActionInput, z.object({
+  tool: z.enum(ACTION_TOOLS),
   /** CSS selector, URL (for goto), test id, or text snippet (for assert_text). */
   target: z.string().optional(),
   /** Value to type (for fill) or key chord (for press). */
@@ -24,10 +73,10 @@ export const ActionSchema = z.object({
    * Locator strategy hint. Role / text / label / testid survive DOM reshuffles
    * better than a raw CSS selector.
    */
-  locator: z.enum(['css', 'role', 'text', 'placeholder', 'label', 'testid']).optional(),
+  locator: z.enum(ACTION_LOCATORS).optional(),
   /** One-sentence explanation, useful for the report timeline. */
   rationale: z.string().optional(),
-});
+}));
 
 export type ResolvedAction = z.infer<typeof ActionSchema>;
 
@@ -244,6 +293,8 @@ Locator guidance:
   - Never invent selectors, search boxes, or exact page titles. Use only elements visible in the skeleton.
   - Do not turn page-title expectations into bugs; exploratory users observe what loaded.
   - If the step asks to log in, enter OTP, or create an account, use "noop".
+  - "tool" and "locator" are exact lowercase strings from the lists above, not objects.
+  - "target" and "value" are strings. Omit a key instead of sending null.
 
 Context:
   Flow:           ${flow.name} (${flow.kind})
@@ -261,11 +312,12 @@ Visible page skeleton (top of body):
 
 Reply with JSON only.`;
 
-  return llm.generateJSON({
+  const raw = await llm.generateJSON({
     label: 'runner.resolveAction',
     prompt,
     schema: ActionSchema,
   });
+  return ActionSchema.parse(raw);
 
 }
 

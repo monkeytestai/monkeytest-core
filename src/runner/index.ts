@@ -40,6 +40,7 @@ import type {
   TraceStep,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
+import { logModelDetail } from '../llm/coerce.js';
 import {
   captureLocator,
   directActionFromStep,
@@ -439,13 +440,14 @@ async function runFlow(
     } catch (err) {
       // LLM couldn't propose an action. That's a planner/runner integration
       // problem, not a product bug — record it but don't poison the flow.
-      const msg = err instanceof Error ? err.message : String(err);
+      const detail = err instanceof Error ? err.message : String(err);
+      logModelDetail('runner.resolveAction', detail);
       const result: StepResult = {
         index: stepIndex,
         action: step.action,
         expectation: step.expectation,
         status: 'skipped',
-        observation: `Could not interpret this step automatically (${msg.slice(0, 120)}).`,
+        observation: 'Could not interpret this step automatically.',
         durationMs: Date.now() - stepStart,
         screenshotPath: await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, 'skipped'),
       };
@@ -472,6 +474,7 @@ async function runFlow(
           flowId: flow.id, flowIndex, flowsTotal,
           stepIndex, status: result.status,
           observation: result.observation,
+          detail,
           screenshot: result.screenshotPath ? basename(result.screenshotPath) : null,
           currentUrl: page.url(),
         },

@@ -51,6 +51,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, opts);
 ```
 SiteMap
  ├─ pages: SiteMapPage[]              { url, title, summary, interactive[], outboundLinks[], authGated, screenshotPath? }
+ ├─ warnings?: string[]               user-facing notes when a model summary fell back
  └─ failedUrls: { url, reason }[]
 
 TestPlan

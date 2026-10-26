@@ -21,7 +21,7 @@ events.on((e: LiveEvent) => {
 
 ## Common `type` values
 
-**Explorer:** `explore.start`, `explore.page_visited`, `explore.page_failed`, `explore.screenshot`, `explore.complete`
+**Explorer:** `explore.start`, `explore.page_visited`, `explore.page_failed`, `explore.screenshot`, `explore.warning`, `explore.complete`
 
 **Planner:** `plan.start`, `plan.complete`, `plan.skipped`
 

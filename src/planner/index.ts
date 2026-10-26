@@ -172,10 +172,12 @@ Reply with JSON:
     const salvaged = salvageModelFlows(result.flows);
     flows = dedupeFlowIds(salvaged.flows);
     modelNotes = typeof result.notes === 'string' ? result.notes : undefined;
-    if (!Array.isArray(result.flows) || (result.flows.length > 0 && salvaged.flows.length === 0)) {
-      const count = Array.isArray(result.flows) ? result.flows.length : 0;
-      modelProblem = count > 0
-        ? `Planner model returned ${count} flow${count === 1 ? '' : 's'} and none had a usable step.`
+    const rawCount = Array.isArray(result.flows)
+      ? result.flows.length
+      : (result.flows && typeof result.flows === 'object' ? 1 : 0);
+    if (rawCount === 0 || salvaged.flows.length === 0) {
+      modelProblem = rawCount > 0
+        ? `Planner model returned ${rawCount} flow${rawCount === 1 ? '' : 's'} and none had a usable step.`
         : 'Planner model returned no flow list.';
       discardedModel = true;
     } else if (salvaged.dropped > 0) {
@@ -200,7 +202,7 @@ Reply with JSON:
       : 'the crawl had no public form or fault control to keep';
     events.emit({
       phase: 'planner', type: 'engine.error',
-      message: `Planner model response was unusable; ${kept}. ${truncate(modelProblem, 140)}`,
+      message: `Planner model response was unusable; ${kept}.`,
       data: { error: modelProblem },
     });
   }

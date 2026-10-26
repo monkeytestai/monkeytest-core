@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { coerceEnum } from '../llm/coerce.js';
 import type { FlowKind, TestFlow, TestStep } from '../types.js';
 
 const KINDS = ['happy_path', 'edge_case', 'auth_required', 'destructive', 'accessibility', 'visual'] as const;
@@ -34,10 +35,11 @@ export interface SalvagedFlows {
 }
 
 export function salvageModelFlows(raw: unknown): SalvagedFlows {
-  if (!Array.isArray(raw)) return { flows: [], dropped: 0 };
+  const list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? [raw] : null);
+  if (!list) return { flows: [], dropped: 0 };
   const flows: TestFlow[] = [];
   let dropped = 0;
-  raw.forEach((item, index) => {
+  list.forEach((item, index) => {
     const flow = coerceFlow(item, index);
     if (flow) flows.push(flow);
     else dropped += 1;
@@ -60,27 +62,43 @@ function coerceFlow(raw: unknown, index: number): TestFlow | undefined {
     id: text(record.id, 1) || `model-flow-${index + 1}`,
     name: text(record.name, 3) || `Flow ${index + 1}`,
     description: text(record.description, 3) || 'Kept from a partial planner response.',
-    kind: (KINDS as readonly string[]).includes(String(record.kind)) ? record.kind as FlowKind : 'happy_path',
+    kind: coerceEnum(record.kind, KINDS, {
+      happy: 'happy_path',
+      edge: 'edge_case',
+      auth: 'auth_required',
+      login: 'auth_required',
+      a11y: 'accessibility',
+    }) ?? 'happy_path',
     startUrl,
     steps,
     expectation: text(record.expectation, 3) || 'The journey completes.',
-    severityIfFails: (SEVERITIES as readonly string[]).includes(String(record.severityIfFails))
-      ? record.severityIfFails as TestFlow['severityIfFails']
-      : 'major',
+    severityIfFails: coerceEnum(record.severityIfFails ?? record.severity, SEVERITIES, {
+      high: 'major',
+      medium: 'major',
+      med: 'major',
+      low: 'minor',
+      blocker: 'critical',
+      severe: 'critical',
+    }) ?? 'major',
   };
 }
 
 function usableSteps(raw: unknown): TestStep[] {
-  if (!Array.isArray(raw)) return [];
+  const list = Array.isArray(raw)
+    ? raw
+    : (typeof raw === 'string' || (raw && typeof raw === 'object') ? [raw] : []);
   const steps: TestStep[] = [];
-  for (const item of raw) {
+  for (const item of list) {
+    if (typeof item === 'string') {
+      const action = item.trim();
+      if (action.length >= 3) steps.push({ action });
+      continue;
+    }
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
-    const action = typeof record.action === 'string' ? record.action.trim() : '';
+    const action = text(record.action, 3) || text(record.instruction, 3) || text(record.step, 3);
     if (action.length < 3) continue;
-    const expectation = typeof record.expectation === 'string' && record.expectation.trim()
-      ? record.expectation
-      : undefined;
+    const expectation = text(record.expectation, 1) || undefined;
     steps.push(expectation ? { action, expectation } : { action });
   }
   return steps;

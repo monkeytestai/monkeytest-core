@@ -686,12 +686,15 @@ function cmdReport(runId: string | undefined, opts: CommonOpts){
 
 /* ── Pretty-print helpers ─────────────────────────────────────────────── */
 
-function summariseSiteMap(siteMap: { startUrl: string; siteType: string; summary: string; pages: unknown[]; pendingUrls: unknown[]; failedUrls: unknown[] }): string {
+function summariseSiteMap(siteMap: { startUrl: string; siteType: string; summary: string; pages: unknown[]; pendingUrls: unknown[]; failedUrls: unknown[]; warnings?: string[] }): string {
+  const warnings = siteMap.warnings?.length
+    ? `\n${siteMap.warnings.map(warning => `  ${tty('warning:', 'yellow')} ${warning}`).join('\n')}`
+    : '';
   return `\n${tty('SiteMap', 'bold')}
   start:    ${siteMap.startUrl}
   type:     ${siteMap.siteType}
   summary:  ${truncate(siteMap.summary, 200)}
-  pages:    ${siteMap.pages.length} visited, ${siteMap.pendingUrls.length} pending, ${siteMap.failedUrls.length} failed`;
+  pages:    ${siteMap.pages.length} visited, ${siteMap.pendingUrls.length} pending, ${siteMap.failedUrls.length} failed${warnings}`;
 }
 
 function summarisePlan(plan: { flows: { name: string; kind: string; steps: unknown[] }[]; notes?: string }): string {

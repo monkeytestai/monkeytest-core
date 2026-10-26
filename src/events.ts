@@ -50,6 +50,7 @@ export type LiveEventType =
   | 'explore.page_visited'
   | 'explore.page_failed'
   | 'explore.screenshot'
+  | 'explore.warning'
   | 'explore.complete'
   // planner
   | 'plan.start'

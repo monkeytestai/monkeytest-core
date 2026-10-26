@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-  title: 'MonkeyTest Core',
+  title: 'monkeytester',
   description:
     'The open-source AI agent that explores your website like a real user and reports bugs. Playwright + LLM. Works with OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint.',
   lang: 'en-US',
@@ -16,10 +16,10 @@ export default defineConfig({
       {
         name: 'keywords',
         content:
-          'monkeytest, AI testing, exploratory testing, Playwright, LLM, browser automation, QA, bug detection, OpenAI, Gemini, Anthropic, Mistral, Groq, open source',
+          'monkeytest, monkeytester, AI testing, exploratory testing, Playwright, LLM, browser automation, QA, bug detection, OpenAI, Gemini, Anthropic, Mistral, Groq, open source',
       },
     ],
-    ['meta', { property: 'og:title', content: 'MonkeyTest Core — AI exploratory testing for any web app' }],
+    ['meta', { property: 'og:title', content: 'monkeytester — AI exploratory testing for any web app' }],
     ['meta', { property: 'og:description', content: 'An open-source AI agent that uses your site like a real user and reports bugs. Playwright + your favourite LLM.' }],
     ['meta', { property: 'og:image', content: 'https://docs.monkeytest.ai/hero.jpg' }],
     ['meta', { property: 'og:type', content: 'website' }],
@@ -35,7 +35,7 @@ export default defineConfig({
       { text: 'Why monkeytest', link: '/guide/why-monkeytest', activeMatch: '/guide/why-monkeytest' },
       { text: 'LLMs', link: '/guide/llm-providers', activeMatch: '/guide/llm-' },
       { text: 'Reference', link: '/reference/overview', activeMatch: '/reference/' },
-      { text: 'GitHub', link: 'https://github.com/monkeytestai/monkeytest-core' },
+      { text: 'GitHub', link: 'https://github.com/monkeytestai/monkeytester' },
       { text: 'MonkeyTest Cloud', link: 'https://monkeytest.ai' },
     ],
 
@@ -94,7 +94,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/monkeytestai/monkeytest-core' },
+      { icon: 'github', link: 'https://github.com/monkeytestai/monkeytester' },
     ],
 
     footer: {
@@ -108,7 +108,7 @@ export default defineConfig({
 
     editLink: {
       pattern:
-        'https://github.com/monkeytestai/monkeytest-core/edit/main/docs/:path',
+        'https://github.com/monkeytestai/monkeytester/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },

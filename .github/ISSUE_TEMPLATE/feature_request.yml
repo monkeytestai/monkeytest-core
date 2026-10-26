@@ -6,7 +6,7 @@ body:
     id: problem
     attributes:
       label: Problem or use case
-      description: What are you trying to achieve with MonkeyTest Core?
+      description: What are you trying to achieve with monkeytester?
     validations:
       required: true
   - type: textarea

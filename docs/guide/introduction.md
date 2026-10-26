@@ -1,6 +1,6 @@
 # Introduction
 
-**MonkeyTest Core** is a TypeScript library that turns an LLM into an exploratory test agent for your web app. You give it a URL; it gives you back a list of bugs with screenshots.
+**monkeytester** is a TypeScript library that turns an LLM into an exploratory test agent for your web app. You give it a URL; it gives you back a list of bugs with screenshots.
 
 It runs in **four phases**:
 

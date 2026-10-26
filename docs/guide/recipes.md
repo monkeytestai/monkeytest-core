@@ -1,11 +1,11 @@
 # Recipes
 
-Battle-tested patterns for getting real value out of MonkeyTest Core. Copy, paste, adjust.
+Battle-tested patterns for getting real value out of monkeytester. Copy, paste, adjust.
 
 ## Test a deploy preview, fail the build on bugs
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
@@ -41,7 +41,7 @@ Bug `fingerprint`s are stable across runs, so you can diff `bugs[].fingerprint` 
 ## Live progress in your CLI
 
 ```ts
-import { Monkey, EventBus, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, EventBus, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const events = new EventBus();
 events.on(e => {
@@ -61,7 +61,7 @@ await new Monkey({ llm: autoLLMConfig() }).executeAndTriage(url, {
 
 ```ts
 import express from 'express';
-import { EventBus } from '@monkeytestai/monkeytest-core';
+import { EventBus } from '@monkeytestai/monkeytester';
 
 const app = express();
 const buses = new Map<string, EventBus>();
@@ -90,7 +90,7 @@ await monkey.executeAndTriage(url, {
 ## Cheap local dev with Ollama
 
 ```ts
-import { Monkey } from '@monkeytestai/monkeytest-core';
+import { Monkey } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({
   llm: {
@@ -150,7 +150,7 @@ The package is ESM, fully typed, and has zero opinionated dependencies on a host
 
 ```ts
 // worker/runMonkey.ts
-import { Monkey, autoLLMConfig, EventBus } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig, EventBus } from '@monkeytestai/monkeytester';
 
 export async function runMonkeyTest({ url, screenshotsDir, onEvent }) {
   const events = new EventBus();

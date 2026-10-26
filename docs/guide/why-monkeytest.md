@@ -6,15 +6,15 @@ A map of nearby open-source and source-available tools, so you can tell whether 
 
 ## What this repository does
 
-[monkeytest-core](https://github.com/monkeytestai/monkeytest-core) is AGPL-3.0-only. You point it at a URL. It crawls a real browser, asks an LLM for flows grounded in that crawl, runs the flows, and writes bugs with stable fingerprints. `rerun` executes the stored plan again. `diff` compares two runs. `run`, `rerun`, and `diff` use exit codes so CI can fail the job. Local models work through any OpenAI-compatible server, including Ollama (`OPENAI_COMPATIBLE_BASE_URL`, provider `openai_compatible`).
+[monkeytester](https://github.com/monkeytestai/monkeytester) is AGPL-3.0-only. You point it at a URL. It crawls a real browser, asks an LLM for flows grounded in that crawl, runs the flows, and writes bugs with stable fingerprints. `rerun` executes the stored plan again. `diff` compares two runs. `run`, `rerun`, and `diff` use exit codes so CI can fail the job. Local models work through any OpenAI-compatible server, including Ollama (`OPENAI_COMPATIBLE_BASE_URL`, provider `openai_compatible`).
 
-Install it with `npm install @monkeytestai/monkeytest-core` ([npm](https://www.npmjs.com/package/@monkeytestai/monkeytest-core), version 0.4.1). The [quick start](/guide/quick-start) also has a clone and a no-key smoke script for contributors. The license summary for this project is on [License](/guide/license). That page is the project's own terms. The table below is only so you can see the other licenses next to it.
+Install it with `npm install @monkeytestai/monkeytester` ([npm](https://www.npmjs.com/package/@monkeytestai/monkeytester), version 0.5.0). The [quick start](/guide/quick-start) also has a clone and a no-key smoke script for contributors. The license summary for this project is on [License](/guide/license). That page is the project's own terms. The table below is only so you can see the other licenses next to it.
 
 ## Side by side
 
 | Project | License | What you give it | What you get back | Local models |
 | --- | --- | --- | --- | --- |
-| [monkeytest-core](https://github.com/monkeytestai/monkeytest-core) | AGPL-3.0-only | A URL | Crawl → plan → run → fingerprinted bugs, then `rerun` and `diff`, with CI exit codes | Yes. OpenAI-compatible servers (Ollama, vLLM, LM Studio) |
+| [monkeytester](https://github.com/monkeytestai/monkeytester) | AGPL-3.0-only | A URL | Crawl → plan → run → fingerprinted bugs, then `rerun` and `diff`, with CI exit codes | Yes. OpenAI-compatible servers (Ollama, vLLM, LM Studio) |
 | [Explorbot](https://github.com/testomatio/explorbot) | Elastic License 2.0 (source-available) | A URL, plus a provider key | Autonomous exploration, and Playwright or CodeceptJS tests you can keep, with reports and screencasts | Unknown. Documented setup is hosted providers through the Vercel AI SDK |
 | [browser-use](https://github.com/browser-use/browser-use) | MIT | A task | A Python browser agent that carries out the task. The repository also describes a hosted cloud | Unknown |
 | [Skyvern](https://github.com/Skyvern-AI/skyvern) | AGPL-3.0 | A browser workflow | Workflow automation ("Automate browser based workflows with AI", from the repository description) | Unknown |
@@ -37,7 +37,7 @@ Install it with `npm install @monkeytestai/monkeytest-core` ([npm](https://www.n
 
 | You want… | Look at |
 | --- | --- |
-| A URL in, a stored plan, fingerprinted bugs, and a rerun/diff you can gate in CI | monkeytest-core |
+| A URL in, a stored plan, fingerprinted bugs, and a rerun/diff you can gate in CI | monkeytester |
 | Exploration that emits a Playwright or CodeceptJS suite | Explorbot |
 | A Python agent that takes a task | browser-use |
 | Browser workflow automation | Skyvern |
@@ -46,6 +46,6 @@ Install it with `npm install @monkeytestai/monkeytest-core` ([npm](https://www.n
 | Natural-language tests on Anthropic | Shortest |
 | Random actions and no model bill | Gremlins.js |
 
-License is part of the choice. monkeytest-core and Skyvern are AGPL-3.0. Explorbot is Elastic License 2.0. The other rows in the table are MIT. Read the license you would actually ship under. For this repository, start with [License](/guide/license).
+License is part of the choice. monkeytester and Skyvern are AGPL-3.0. Explorbot is Elastic License 2.0. The other rows in the table are MIT. Read the license you would actually ship under. For this repository, start with [License](/guide/license).
 
 Next: [Quick start](/guide/quick-start) · [The bug-finding loop](/guide/the-bug-finding-loop)

@@ -125,7 +125,7 @@ export function loadPlan(pathOrDir: string): StoredPlan {
   if (typeof obj.schema !== 'number' || obj.schema > PLAN_FILE_SCHEMA){
     throw new Error(
       `${file} has plan schema ${obj.schema}; this engine understands up to ${PLAN_FILE_SCHEMA}. `
-      + `Upgrade @monkeytestai/monkeytest-core or regenerate the plan.`
+      + `Upgrade @monkeytestai/monkeytester or regenerate the plan.`
     );
   }
   if (!obj.plan || !Array.isArray(obj.plan.flows)){

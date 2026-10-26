@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **MonkeyTest Core** are documented here.
+All notable changes to **monkeytester** are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- README and the docs install from npm: `npm install @monkeytestai/monkeytest-core` (published 0.4.0). A clone remains the contributor path, including the no-key smoke script.
-- Package name is `@monkeytestai/monkeytest-core` (version stays `0.4.0`). It was `@mtai/monkeytest-core`; that npm scope is taken. Imports, install docs, CI, and the Docker image use the new name. Runtime behavior and the AGPL-3.0 license are unchanged.
+- README and the docs installed from npm as `npm install @monkeytestai/monkeytest-core` (published 0.4.0). A clone remained the contributor path, including the no-key smoke script. 0.5.0 renames that package to `@monkeytestai/monkeytester`.
+- The 0.4.0 package name was `@monkeytestai/monkeytest-core` (it was `@mtai/monkeytest-core`; that npm scope is taken). Imports, install docs, CI, and the Docker image used that name. Runtime behavior and the AGPL-3.0 license were unchanged. 0.5.0 replaces it.
 - **SaaS migration.** `new Monkey()` now defaults `strictOracles` and `failOn5xx` to **on**. A page error, a document HTTP 404, a disabled control a step tries to use, and a same-origin HTTP ≥500 (document, xhr, or fetch) become a failed step and a blocking bug. Bug counts and `flowsFailed` will rise. To keep the previous counts, pass `strictOracles: false` and `failOn5xx: false` on the constructor, or the same fields on one `run` / `replay` / `verify` call. `www` and the apex host still match. Other ports, third-party hosts, and image/font responses stay evidence only.
 - `runPlan`, `replayTraces`, `verifyBugs`, and `triage(run)` still leave those switches off unless the caller passes them, so triaging a run you already built does not rewrite it. `Monkey` passes the constructor values (now on) into the run and into `triage`. `RunResult` fields are unchanged.
 - The planner keeps grounded flows, within `maxFlows`, for a crawled public form, one enabled non-submit button, one same-origin link whose target was not crawled, and one disabled non-submit button. Labels and URLs come from the crawl (`SiteMapPage.controls`, optional). Leftover model flows are the ones replaced when the budget is full.
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Multi-stage `Dockerfile` (Node 22, `bookworm-slim`) and [DOCKER.md](./DOCKER.md). `npm ci` and `npm run build` produce `/opt/monkeytest-core` (`dist/`, `package.json`, license files, production dependencies) for a `file:` install or `COPY --from`. Playwright browsers are not downloaded. Engine audit behavior is unchanged.
+- Multi-stage `Dockerfile` (Node 22, `bookworm-slim`) and [DOCKER.md](./DOCKER.md). `npm ci` and `npm run build` produced `/opt/monkeytest-core` (`dist/`, `package.json`, license files, production dependencies) for a `file:` install or `COPY --from`. 0.5.0 moves that tree to `/opt/monkeytester`. Playwright browsers are not downloaded. Engine audit behavior is unchanged.
 - `--fail-on-5xx` (CLI default on, `--no-fail-on-5xx` opts out) fails a passed or skipped step that observed a same-origin HTTP ≥500 on a document, xhr, or fetch, and the triager files it as a critical bug. `new Monkey()` now defaults this **on** as well. Pass `failOn5xx: false` to opt out. `www` and the apex host match. Other ports, third-party hosts, and image/font responses stay evidence only.
 - The crawler reserves a few `maxPages` slots for help, contact, support, about, and other form-style links it actually saw, and keeps those links even when they sit past the ordinary link cap. `SiteMapPage.forms` records scraped forms (optional; existing readers can ignore it).
 - When the crawl contains a public form and `maxFlows` is at least 1, the planner keeps a form-submit flow grounded in that page's URL, fields, and submit label. A header search box does not take that slot. The model is asked for the same flow; the deterministic pass is the floor.
@@ -39,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replay and verify keep going when a step the original run already marked `skipped` has a locator that still misses. A soft skip (for example a placeholder fill that never matched) no longer becomes `locator_mismatch` and hides a later bug, such as a form POST that returned HTTP 500. A step that originally passed or failed still stops the flow. Fingerprints are unchanged.
 - A planner model response that is invalid JSON, fails schema validation, or includes a flow with empty `steps` no longer wipes the plan. Usable model flows are kept. The public-form submit flow and scraped fault-control flows are still added, up to `maxFlows`. `plan()` records the model error on `TestPlan.notes` and emits `engine.error`. `executeAndTriage` runs that plan. An empty plan remains only when the crawl has no public form and no fault control. `RunResult` fields are unchanged. `groundedTestPlan(siteMap, maxFlows)` is the same crawl-only floor, for a host that catches a planner failure itself.
 - The per-flow timeout no longer leaves its timer running after the flow finishes, and it closes the browser context when the budget is exceeded.
+
+## [0.5.0] — 2026-10
+
+### Changed
+
+- **Breaking:** the npm package is `@monkeytestai/monkeytester`. It was `@monkeytestai/monkeytest-core`. Update `npm install` and `import` paths. The CLI binary stays `monkeytest` (`npx monkeytest`). The license stays `AGPL-3.0-only`. `publishConfig.access` stays `public`.
+- Repository URLs in this repo now use `https://github.com/monkeytestai/monkeytester` (previously `https://github.com/monkeytestai/monkeytest-core`). The GitHub repository rename follows this release. The homepage stays `https://docs.monkeytest.ai`.
+- Docs and other in-repo wording for this package use **monkeytester**. The product name **monkeytest**, the `monkeytest` CLI, and the `.monkeytest/` directory are unchanged.
+- The Docker install tree is `/opt/monkeytester` (was `/opt/monkeytest-core`). Example tags are `monkeytester:local` and `monkeytester:ci`. `npm pack` tarballs are named `monkeytestai-monkeytester-<version>.tgz`.
+- `monkeytest version`, and the `engine` label on newly saved plans and runs, now report `monkeytester@0.5.0`. On-disk schema stays `1`.
 
 ## [0.4.1] — 2026-10
 
@@ -155,6 +165,8 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
-[0.4.1]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.4.1
-[0.3.0]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.3.0
-[0.2.0]: https://github.com/monkeytestai/monkeytest-core/releases/tag/v0.2.0
+[0.5.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.0
+[0.4.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.4.1
+[0.4.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.4.0
+[0.3.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.3.0
+[0.2.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.2.0

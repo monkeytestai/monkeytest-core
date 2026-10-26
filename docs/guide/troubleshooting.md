@@ -1,6 +1,6 @@
 # Troubleshooting
 
-A grab bag of the most common errors and how to fix them. If your problem isn't here, [open an issue](https://github.com/monkeytestai/monkeytest-core/issues) — and please include the failing event from the `EventBus` (`engine.error` events have a `data.error` field).
+A grab bag of the most common errors and how to fix them. If your problem isn't here, [open an issue](https://github.com/monkeytestai/monkeytester/issues) — and please include the failing event from the `EventBus` (`engine.error` events have a `data.error` field).
 
 ## First-run failures
 
@@ -172,7 +172,7 @@ Make sure you're not retaining the full `RunResult` in memory across runs. The `
 ## Still stuck?
 
 - Check the [examples in Recipes](/guide/recipes).
-- Search [GitHub issues](https://github.com/monkeytestai/monkeytest-core/issues).
+- Search [GitHub issues](https://github.com/monkeytestai/monkeytester/issues).
 - Open an issue with: engine version (`monkeytest --version` or `package.json`), Node version, the exact `LLMConfig` you used, and the failing `engine.error` event.
 
 Next: [Live events →](/guide/live-events)

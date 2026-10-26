@@ -96,7 +96,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, {
 If you don't want to think tiers at all:
 
 ```ts
-import { autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { autoLLMConfig } from '@monkeytestai/monkeytester';
 
 new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 ```

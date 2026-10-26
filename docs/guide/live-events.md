@@ -3,7 +3,7 @@
 Every phase of the engine emits typed events through an optional `EventBus`. This is the same channel that powers MonkeyTest Cloud's live-activity panel — you can plug it into your own UI in five lines.
 
 ```ts
-import { Monkey, EventBus, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, EventBus, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const bus = new EventBus();
 const off = bus.on(evt => {

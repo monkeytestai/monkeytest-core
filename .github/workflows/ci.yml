@@ -38,30 +38,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the runtime image
-        run: docker build --build-arg SOURCE_COMMIT=${{ github.sha }} -t monkeytest-core:ci .
+        run: docker build --build-arg SOURCE_COMMIT=${{ github.sha }} -t monkeytester:ci .
       - name: CLI help works with no API key
-        run: docker run --rm monkeytest-core:ci --help
+        run: docker run --rm monkeytester:ci --help
       - name: Artifact imports and can be installed as a file dependency
         run: |
-          docker run --rm --entrypoint bash monkeytest-core:ci -lc '
+          docker run --rm --entrypoint bash monkeytester:ci -lc '
             set -euo pipefail
-            test ! -e /opt/monkeytest-core/.env
-            test ! -d /opt/monkeytest-core/src
-            test ! -d /opt/monkeytest-core/node_modules/typescript
-            test ! -d /opt/monkeytest-core/node_modules/vitepress
+            test ! -e /opt/monkeytester/.env
+            test ! -d /opt/monkeytester/src
+            test ! -d /opt/monkeytester/node_modules/typescript
+            test ! -d /opt/monkeytester/node_modules/vitepress
             test ! -d /root/.cache/ms-playwright
-            node --input-type=module -e "import { Monkey } from \"/opt/monkeytest-core/dist/index.js\"; if (typeof Monkey !== \"function\") process.exit(1);"
-            node --input-type=module -e "import { readFileSync } from \"node:fs\"; const p = JSON.parse(readFileSync(\"/opt/monkeytest-core/package.json\", \"utf8\")); if (p.scripts && p.scripts.prepack) { console.error(\"prepack must be stripped\"); process.exit(1); } if (p.name !== \"@monkeytestai/monkeytest-core\") process.exit(1); console.log(p.name, p.version);"
+            node --input-type=module -e "import { Monkey } from \"/opt/monkeytester/dist/index.js\"; if (typeof Monkey !== \"function\") process.exit(1);"
+            node --input-type=module -e "import { readFileSync } from \"node:fs\"; const p = JSON.parse(readFileSync(\"/opt/monkeytester/package.json\", \"utf8\")); if (p.scripts && p.scripts.prepack) { console.error(\"prepack must be stripped\"); process.exit(1); } if (p.name !== \"@monkeytestai/monkeytester\") process.exit(1); console.log(p.name, p.version);"
             mkdir -p /tmp/consumer
             cd /tmp/consumer
             npm init -y >/dev/null
-            npm pkg set dependencies.@monkeytestai/monkeytest-core=file:/opt/monkeytest-core
+            npm pkg set dependencies.@monkeytestai/monkeytester=file:/opt/monkeytester
             npm install --omit=dev --no-audit --no-fund
-            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/opt/monkeytest-core/\")) { console.error(pw); process.exit(1); } console.log(\"file-link\", Monkey.name);"
+            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytester\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytester\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/opt/monkeytester/\")) { console.error(pw); process.exit(1); } console.log(\"file-link\", Monkey.name);"
             mkdir -p /tmp/pack /tmp/app
-            npm pack --ignore-scripts --pack-destination /tmp/pack /opt/monkeytest-core
+            npm pack --ignore-scripts --pack-destination /tmp/pack /opt/monkeytester
             cd /tmp/app
             npm init -y >/dev/null
-            npm install --omit=dev --no-audit --no-fund /tmp/pack/monkeytestai-monkeytest-core-*.tgz
-            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytest-core\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytest-core\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/tmp/app/\")) { console.error(pw); process.exit(1); } console.log(\"tarball-install\", Monkey.name);"
+            npm install --omit=dev --no-audit --no-fund /tmp/pack/monkeytestai-monkeytester-*.tgz
+            node --input-type=module -e "import { createRequire } from \"node:module\"; import { Monkey } from \"@monkeytestai/monkeytester\"; if (typeof Monkey !== \"function\") process.exit(1); const require = createRequire(import.meta.resolve(\"@monkeytestai/monkeytester\")); const pw = require.resolve(\"playwright/package.json\"); if (!pw.startsWith(\"/tmp/app/\")) { console.error(pw); process.exit(1); } console.log(\"tarball-install\", Monkey.name);"
           '

@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: MonkeyTest Core
+  name: monkeytester
   text: An AI agent that uses your site like a real user — and reports the bugs.
   tagline: Open-source. Playwright + your favourite LLM. Zero glue code. Built for devs who'd rather ship than write yet another Selenium script.
   image:
@@ -17,12 +17,12 @@ hero:
       link: /guide/architecture
     - theme: alt
       text: GitHub
-      link: https://github.com/monkeytestai/monkeytest-core
+      link: https://github.com/monkeytestai/monkeytester
 
 features:
   - title: Drop-in, not framework
     icon: 🧰
-    details: One library, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`. Install with `npm install @monkeytestai/monkeytest-core`.
+    details: One library, one constructor. No Selenium grids, no test DSL, no YAML — just `await monkey.executeAndTriage(url)`. Install with `npm install @monkeytestai/monkeytester`.
   - title: Bring your own LLM
     icon: 🧠
     details: OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint (Ollama, vLLM, OpenRouter). Pick a different model per phase.
@@ -45,17 +45,17 @@ features:
 </style>
 
 ::: info Install
-`npm install @monkeytestai/monkeytest-core` (version 0.4.1, [npm](https://www.npmjs.com/package/@monkeytestai/monkeytest-core)). The [quick start](/guide/quick-start) also covers a clone and a no-key smoke test. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
+`npm install @monkeytestai/monkeytester` (version 0.5.0, [npm](https://www.npmjs.com/package/@monkeytestai/monkeytester)). The [quick start](/guide/quick-start) also covers a clone and a no-key smoke test. A side-by-side with other tools is on [Why monkeytest](/guide/why-monkeytest).
 :::
 
-## Why MonkeyTest Core?
+## Why monkeytester?
 
-Most QA tools ask you to **write tests**. MonkeyTest Core writes its own — by **looking** at your app first. How that compares with Explorbot, browser-use, Skyvern, Stagehand, Midscene.js, Shortest, and Gremlins.js is on [Why monkeytest](/guide/why-monkeytest).
+Most QA tools ask you to **write tests**. monkeytester writes its own — by **looking** at your app first. How that compares with Explorbot, browser-use, Skyvern, Stagehand, Midscene.js, Shortest, and Gremlins.js is on [Why monkeytest](/guide/why-monkeytest).
 
 It opens a real browser, crawls a few pages, asks an LLM *"what would a real user try here?"*, runs those flows step by step, and hands you back a structured report with screenshots, bug fingerprints, and a live event stream you can wire into your own dashboard.
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 

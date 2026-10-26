@@ -5,7 +5,7 @@ The high-level orchestrator. Build it once with an `MonkeyLLMConfig`, then call 
 ## Constructor
 
 ```ts
-import { Monkey } from '@monkeytestai/monkeytest-core';
+import { Monkey } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({
   llm: {
@@ -28,7 +28,7 @@ If `runner` is omitted, the planner LLM is reused for runner calls. See [LLM pro
 ### Convenience constructor
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 ```

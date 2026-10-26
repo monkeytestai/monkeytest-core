@@ -1,15 +1,15 @@
 # Quick start
 
-[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.1** is on npm.
+[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0** is on npm.
 
 ```bash
-npm install @monkeytestai/monkeytest-core
+npm install @monkeytestai/monkeytester
 npx playwright install chromium
 export GEMINI_API_KEY="paste-your-key"
 npx monkeytest run https://example.com --max 2 --flows 1
 ```
 
-pnpm, yarn, and bun install the same package (`pnpm add @monkeytestai/monkeytest-core`, `yarn add @monkeytestai/monkeytest-core`, `bun add @monkeytestai/monkeytest-core`). The sections below are the contributor clone: a local build and a no-key smoke script. A fresh machine spends most of the few minutes on `npm install` and the Chromium download. The smoke run itself is about two seconds.
+pnpm, yarn, and bun install the same package (`pnpm add @monkeytestai/monkeytester`, `yarn add @monkeytestai/monkeytester`, `bun add @monkeytestai/monkeytester`). The sections below are the contributor clone: a local build and a no-key smoke script. A fresh machine spends most of the few minutes on `npm install` and the Chromium download. The smoke run itself is about two seconds.
 
 ## Prerequisites
 
@@ -20,8 +20,8 @@ pnpm, yarn, and bun install the same package (`pnpm add @monkeytestai/monkeytest
 ## 1. Clone, install, and build
 
 ```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
+git clone https://github.com/monkeytestai/monkeytester.git
+cd monkeytester
 npm install
 npm run build
 ```
@@ -67,7 +67,7 @@ The last line is the success signal. Then confirm the CLI is the binary you just
 node dist/cli.js --help
 ```
 
-The help text lists `init`, `explore`, `run`, `rerun`, `diff`, and `report`. Inside this clone the command is `node dist/cli.js`. After `npm install @monkeytestai/monkeytest-core`, the same binary is `npx monkeytest` (or `monkeytest` if you installed it globally).
+The help text lists `init`, `explore`, `run`, `rerun`, `diff`, and `report`. Inside this clone the command is `node dist/cli.js`. After `npm install @monkeytestai/monkeytester`, the same binary is `npx monkeytest` (or `monkeytest` if you installed it globally).
 
 ## 4. First real run (free Gemini key)
 
@@ -181,7 +181,7 @@ node dist/cli.js diff prev latest
 This is the call most of the other pages show. It imports the published package. Inside this clone, import `./src/index.ts` from a `tsx` script, or `./dist/index.js` from plain Node.
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 

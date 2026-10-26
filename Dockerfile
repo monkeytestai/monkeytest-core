@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 
-# Reproducible build of @monkeytestai/monkeytest-core.
+# Reproducible build of @monkeytestai/monkeytester.
 #
-#   docker build -t monkeytest-core:local .
+#   docker build -t monkeytester:local .
 #
-# The runtime stage keeps a single installable tree at /opt/monkeytest-core:
+# The runtime stage keeps a single installable tree at /opt/monkeytester:
 # dist/, package.json, the files the npm package ships, the lockfile, and
 # production node_modules. Copy that directory into another image, or point
 # a `file:` dependency at it.
@@ -43,9 +43,9 @@ RUN mkdir -p /tmp/pack \
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 ARG SOURCE_COMMIT=
-LABEL org.opencontainers.image.title="@monkeytestai/monkeytest-core" \
-      org.opencontainers.image.description="Compiled @monkeytestai/monkeytest-core package for file: installs and image copies." \
-      org.opencontainers.image.source="https://github.com/monkeytestai/monkeytest-core" \
+LABEL org.opencontainers.image.title="@monkeytestai/monkeytester" \
+      org.opencontainers.image.description="Compiled @monkeytestai/monkeytester package for file: installs and image copies." \
+      org.opencontainers.image.source="https://github.com/monkeytestai/monkeytester" \
       org.opencontainers.image.url="https://docs.monkeytest.ai" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.revision="${SOURCE_COMMIT}"
@@ -55,7 +55,7 @@ ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false
 
-WORKDIR /opt/monkeytest-core
+WORKDIR /opt/monkeytester
 
 COPY --from=build /src/package-lock.json ./package-lock.json
 COPY --from=build /tmp/pack/ /tmp/pack/
@@ -65,7 +65,7 @@ COPY --from=build /tmp/pack/ /tmp/pack/
 # in the build stage. --ignore-scripts on `npm pack` skipped `prepack`
 # (which would have compiled a second time); the script is still in the
 # packed manifest until we delete it below.
-RUN tar -xzf /tmp/pack/monkeytestai-monkeytest-core-*.tgz -C /opt/monkeytest-core --strip-components=1 \
+RUN tar -xzf /tmp/pack/monkeytestai-monkeytester-*.tgz -C /opt/monkeytester --strip-components=1 \
  && rm -rf /tmp/pack \
  && npm ci --omit=dev --no-audit --no-fund \
  && npm pkg delete scripts.prepack \
@@ -87,10 +87,10 @@ RUN tar -xzf /tmp/pack/monkeytestai-monkeytest-core-*.tgz -C /opt/monkeytest-cor
  && test -d node_modules/zod \
  && test ! -d /root/.cache/ms-playwright \
  && test ! -d /ms-playwright \
- && chown -R node:node /opt/monkeytest-core
+ && chown -R node:node /opt/monkeytester
 
 WORKDIR /home/node
 USER node
 
-ENTRYPOINT ["node", "/opt/monkeytest-core/dist/cli.js"]
+ENTRYPOINT ["node", "/opt/monkeytester/dist/cli.js"]
 CMD ["--help"]

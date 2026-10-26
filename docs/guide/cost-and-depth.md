@@ -22,7 +22,7 @@ We update this page periodically, but always sanity-check against the provider's
 
 ## Token assumptions
 
-Conservative averages from the engine's actual prompts (you can see them all under `monkeytest-core/src/{explorer,planner,runner,triager}/`).
+Conservative averages from the engine's actual prompts (you can see them all under `monkeytester/src/{explorer,planner,runner,triager}/`).
 
 | Phase | Input tokens / call | Output tokens / call |
 | ----- | ------------------- | -------------------- |
@@ -100,7 +100,7 @@ runner:   36 × (1500 × $0.59  + 120  × $0.79)  / 1e6 ≈ $0.035
 For a small team running on every PR:
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({
   llm: autoLLMConfig({

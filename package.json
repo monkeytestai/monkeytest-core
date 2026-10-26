@@ -1,19 +1,20 @@
 {
-  "name": "@monkeytestai/monkeytest-core",
-  "version": "0.4.1",
+  "name": "@monkeytestai/monkeytester",
+  "version": "0.5.0",
   "description": "Open-source AI exploratory testing engine. Crawls a real browser with Playwright, plans flows with an LLM, executes with screenshots, and reports deduplicated bugs. Works with OpenAI, Gemini, Anthropic, Mistral, Groq, or any OpenAI-compatible endpoint.",
   "license": "AGPL-3.0-only",
   "author": "MonkeyTest",
   "homepage": "https://docs.monkeytest.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monkeytestai/monkeytest-core.git"
+    "url": "git+https://github.com/monkeytestai/monkeytester.git"
   },
   "bugs": {
-    "url": "https://github.com/monkeytestai/monkeytest-core/issues"
+    "url": "https://github.com/monkeytestai/monkeytester/issues"
   },
   "keywords": [
     "monkeytest",
+    "monkeytester",
     "ai-testing",
     "exploratory-testing",
     "playwright",

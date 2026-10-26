@@ -1,7 +1,7 @@
 # EventBus & live events
 
 ```ts
-import { EventBus, type LiveEvent } from '@monkeytestai/monkeytest-core';
+import { EventBus, type LiveEvent } from '@monkeytestai/monkeytester';
 
 const events = new EventBus();
 events.on((e: LiveEvent) => {

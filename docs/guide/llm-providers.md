@@ -1,6 +1,6 @@
 # LLM providers
 
-MonkeyTest Core ships first-class support for **six provider families**, and lets you mix providers across phases. Every phase (`explorer`, `planner`, `runner`) takes its own `LLMConfig`, so you can — for example — use Anthropic for the smart planning call and Groq for the cheap per-step runner calls.
+monkeytester ships first-class support for **six provider families**, and lets you mix providers across phases. Every phase (`explorer`, `planner`, `runner`) takes its own `LLMConfig`, so you can — for example — use Anthropic for the smart planning call and Groq for the cheap per-step runner calls.
 
 ```ts
 new Monkey({
@@ -194,7 +194,7 @@ This costs roughly the same as "Gemini Flash everywhere" but produces noticeably
 Don't want to think about any of this for your first run?
 
 ```ts
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 ```

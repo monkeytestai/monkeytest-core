@@ -1,6 +1,6 @@
 # Use in CI
 
-MonkeyTest Core is small enough to run on every PR. The pattern is:
+monkeytester is small enough to run on every PR. The pattern is:
 
 1. Wait for your deploy preview URL.
 2. Run the engine against it.
@@ -10,7 +10,7 @@ MonkeyTest Core is small enough to run on every PR. The pattern is:
 
 This page shows the canonical setup for **GitHub Actions** + **Vercel-style preview URLs**, but the pattern works anywhere.
 
-The workflow below runs `npm ci` in *your* app and imports `@monkeytestai/monkeytest-core`. Add that dependency first (`npm install @monkeytestai/monkeytest-core`). It is published at <https://www.npmjs.com/package/@monkeytestai/monkeytest-core> as version **0.4.1**. Screenshot paths in the sample are `.monkeytest/shots/`, which is where the engine writes them.
+The workflow below runs `npm ci` in *your* app and imports `@monkeytestai/monkeytester`. Add that dependency first (`npm install @monkeytestai/monkeytester`). It is published at <https://www.npmjs.com/package/@monkeytestai/monkeytester> as version **0.5.0**. Screenshot paths in the sample are `.monkeytest/shots/`, which is where the engine writes them.
 
 ## Minimal `runner.ts`
 
@@ -19,7 +19,7 @@ Add to your repo:
 ```ts
 // .monkeytest/runner.ts
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig } from '@monkeytestai/monkeytester';
 
 const url = process.env.PREVIEW_URL;
 if (!url) { console.error('PREVIEW_URL is required'); process.exit(2); }

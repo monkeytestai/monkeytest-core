@@ -1,6 +1,6 @@
 # How it works
 
-MonkeyTest Core is a four-phase pipeline. Each phase is a pure function of its inputs and emits structured events you can subscribe to.
+monkeytester is a four-phase pipeline. Each phase is a pure function of its inputs and emits structured events you can subscribe to.
 
 ```
 URL ─▶ Explorer ─▶ SiteMap ─▶ Planner ─▶ TestPlan ─▶ Runner ─▶ RunResult ─▶ Triager ─▶ RunResult { bugs[] }
@@ -95,7 +95,7 @@ Nothing is "all or nothing". You always get evidence.
 Every phase emits structured `LiveEvent`s through an optional `EventBus`. This is what powers MonkeyTest Cloud's live-activity panel and is documented in [Live events](/guide/live-events).
 
 ```ts
-import { Monkey, EventBus } from '@monkeytestai/monkeytest-core';
+import { Monkey, EventBus } from '@monkeytestai/monkeytester';
 
 const events = new EventBus();
 events.on(e => console.log(`[${e.phase}] ${e.type}: ${e.message}`));

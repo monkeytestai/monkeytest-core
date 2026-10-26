@@ -1,5 +1,5 @@
 name: Bug report
-description: Something is broken in monkeytest-core (engine or CLI)
+description: Something is broken in monkeytester (engine or CLI)
 labels: ["bug", "triage"]
 body:
   - type: markdown
@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: "@monkeytestai/monkeytest-core version"
+      label: "@monkeytestai/monkeytester version"
       placeholder: e.g. 0.2.0
     validations:
       required: true

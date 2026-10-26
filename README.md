@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/public/hero.jpg" alt="MonkeyTest Core — an AI agent that uses your site like a real user and reports the bugs" width="820" />
+  <img src="docs/public/hero.jpg" alt="monkeytester — an AI agent that uses your site like a real user and reports the bugs" width="820" />
 </p>
 
-<h1 align="center">MonkeyTest Core</h1>
+<h1 align="center">monkeytester</h1>
 
 <p align="center">
   <strong>An AI agent that uses your site like a real user — and reports the bugs.</strong><br />
@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@monkeytestai/monkeytest-core"><img src="https://img.shields.io/npm/v/@monkeytestai/monkeytest-core" alt="npm @monkeytestai/monkeytest-core" /></a>
+  <a href="https://www.npmjs.com/package/@monkeytestai/monkeytester"><img src="https://img.shields.io/npm/v/@monkeytestai/monkeytester" alt="npm @monkeytestai/monkeytester" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+" /></a>
   <a href="https://docs.monkeytest.ai"><img src="https://img.shields.io/badge/docs-docs.monkeytest.ai-7c3aed" alt="Documentation" /></a>
-  <a href="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml"><img src="https://github.com/monkeytestai/monkeytest-core/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/monkeytestai/monkeytest-core/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64748b" alt="AGPL-3.0" /></a>
+  <a href="https://github.com/monkeytestai/monkeytester/actions/workflows/ci.yml"><img src="https://github.com/monkeytestai/monkeytester/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/monkeytestai/monkeytester/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64748b" alt="AGPL-3.0" /></a>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ---
 
-Most "AI testing" tools stop at *finding* bugs. MonkeyTest Core is built around the **full loop**:
+Most "AI testing" tools stop at *finding* bugs. monkeytester is built around the **full loop**:
 
 > **find → fix → re-run the same plan → diff what changed.**
 
@@ -41,12 +41,12 @@ npx monkeytest rerun                     # re-runs the same plan, exit 1 if any 
 npx monkeytest diff prev latest          # 2 fixed, 0 new, 1 still broken, 0 regressed (net -2)
 ```
 
-Those subcommands come from `npm install @monkeytestai/monkeytest-core`. A clone runs them with `node dist/cli.js`.
+Those subcommands come from `npm install @monkeytestai/monkeytester`. A clone runs them with `node dist/cli.js`.
 
 Or programmatically — same primitives:
 
 ```ts
-import { Monkey, autoLLMConfig, savePlan, loadPlan, diffRuns, saveRun } from '@monkeytestai/monkeytest-core';
+import { Monkey, autoLLMConfig, savePlan, loadPlan, diffRuns, saveRun } from '@monkeytestai/monkeytester';
 
 const monkey = new Monkey({ llm: autoLLMConfig({ quality: 'balanced' }) });
 
@@ -68,18 +68,18 @@ const diff = diffRuns(a, b);
 console.log(`${diff.stats.fixed} fixed, ${diff.stats.regressed} regressed`);
 ```
 
-No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves from [`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) on npm. See [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
+No fixtures, no page objects, no recorders. Read [the bug-finding loop](https://docs.monkeytest.ai/guide/the-bug-finding-loop) for the full story. The import above resolves from [`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) on npm. See [why monkeytest](https://docs.monkeytest.ai/guide/why-monkeytest) for how it sits next to similar tools.
 
 ## Install
 
 Node.js 20 or newer.
 
 ```bash
-npm install @monkeytestai/monkeytest-core
+npm install @monkeytestai/monkeytester
 npx playwright install chromium
 ```
 
-[@monkeytestai/monkeytest-core](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.1** is the published package. The CLI is `npx monkeytest`.
+[@monkeytestai/monkeytester](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0** is the published package. The CLI is `npx monkeytest`.
 
 ```bash
 export GEMINI_API_KEY="paste-your-key"
@@ -93,7 +93,7 @@ Screenshots are written to `.monkeytest/shots/`. A free Gemini key, or Ollama on
 The no-key smoke script lives in the repository. It stubs the LLM, crawls `https://example.com`, and prints `OK — engine pipeline is wired correctly.`
 
 ```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git && cd monkeytest-core
+git clone https://github.com/monkeytestai/monkeytester.git && cd monkeytester
 npm install && npm run build
 npx playwright install chromium && node scripts/smoke.mjs
 ```
@@ -102,14 +102,14 @@ npx playwright install chromium && node scripts/smoke.mjs
 
 ## Docker
 
-A multi-stage image compiles this package and leaves it at `/opt/monkeytest-core` (`dist/`, `package.json`, and production dependencies) so another image can copy it, or so a sibling checkout can satisfy `file:../monkeytest-core`. API keys and Playwright browsers are not in the image. Build, the `mtaiserver` layout, and the pinned hosted SHA are in [DOCKER.md](./DOCKER.md).
+A multi-stage image compiles this package and leaves it at `/opt/monkeytester` (`dist/`, `package.json`, and production dependencies) so another image can copy it, or so a sibling checkout can satisfy `file:../monkeytester`. `mtaiserver` still uses `file:../monkeytest-core` until that repo is updated. API keys and Playwright browsers are not in the image. Build, the sibling layout, and the pinned hosted SHA are in [DOCKER.md](./DOCKER.md).
 
 ```bash
-docker build -t monkeytest-core:local .
-docker run --rm monkeytest-core:local --help
+docker build -t monkeytester:local .
+docker run --rm monkeytester:local --help
 ```
 
-## Why MonkeyTest Core?
+## Why monkeytester?
 
 - **Closed loop, not just discovery.** Stable JSON plans + bug fingerprints + a real `rerun` and `diff` — built in, not bolted on.
 - **Drop-in, not framework.** One library, one constructor. No DSL.
@@ -122,7 +122,7 @@ docker run --rm monkeytest-core:local --help
 ## A comprehensive example
 
 ```ts
-import { Monkey, EventBus } from '@monkeytestai/monkeytest-core';
+import { Monkey, EventBus } from '@monkeytestai/monkeytester';
 
 const events = new EventBus();
 events.on(e => console.log(`[${e.phase}] ${e.type}: ${e.message}`));

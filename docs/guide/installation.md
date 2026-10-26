@@ -1,6 +1,6 @@
 # Installation
 
-[`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.1** is published on npm. `npm install @monkeytestai/monkeytest-core` is the install. A clone is the path for contributors.
+[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0** is published on npm. `npm install @monkeytestai/monkeytester` is the install. A clone is the path for contributors.
 
 ## Requirements
 
@@ -13,36 +13,36 @@
 ::: code-group
 
 ```bash [npm]
-npm install @monkeytestai/monkeytest-core
+npm install @monkeytestai/monkeytester
 npx playwright install chromium
 ```
 
 ```bash [pnpm]
-pnpm add @monkeytestai/monkeytest-core
+pnpm add @monkeytestai/monkeytester
 pnpm exec playwright install chromium
 ```
 
 ```bash [yarn]
-yarn add @monkeytestai/monkeytest-core
+yarn add @monkeytestai/monkeytester
 yarn playwright install chromium
 ```
 
 ```bash [bun]
-bun add @monkeytestai/monkeytest-core
+bun add @monkeytestai/monkeytester
 bunx playwright install chromium
 ```
 
 :::
 
-The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary (`npx monkeytest`, or `monkeytest` after a global install). Releases are published from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytest-core/blob/main/.github/workflows/release.yml) on a `v*` tag, with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
+The package is ESM, ships TypeScript declarations, and exposes a `monkeytest` binary (`npx monkeytest`, or `monkeytest` after a global install). Releases are published from [`.github/workflows/release.yml`](https://github.com/monkeytestai/monkeytester/blob/main/.github/workflows/release.yml) on a `v*` tag, with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
 
 ## From a clone (contributors)
 
 The clone is how you change the engine. It also runs the no-key smoke script, which is not in the published package.
 
 ```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
+git clone https://github.com/monkeytestai/monkeytester.git
+cd monkeytester
 npm install
 npm run build
 npx playwright install chromium

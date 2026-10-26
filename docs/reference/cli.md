@@ -1,17 +1,17 @@
 # CLI reference
 
-The `monkeytest` binary ships in [`@monkeytestai/monkeytest-core`](https://www.npmjs.com/package/@monkeytestai/monkeytest-core) **0.4.1**:
+The `monkeytest` binary ships in [`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.0**:
 
 ```bash
-npm install @monkeytestai/monkeytest-core
+npm install @monkeytestai/monkeytester
 npx monkeytest --help
 ```
 
-`npm install -g @monkeytestai/monkeytest-core` puts `monkeytest` on your PATH. From a clone, the same binary is `dist/cli.js`:
+`npm install -g @monkeytestai/monkeytester` puts `monkeytest` on your PATH. From a clone, the same binary is `dist/cli.js`:
 
 ```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
+git clone https://github.com/monkeytestai/monkeytester.git
+cd monkeytester
 npm install && npm run build
 node dist/cli.js --help
 ```

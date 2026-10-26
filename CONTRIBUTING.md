@@ -1,4 +1,4 @@
-# Contributing to MonkeyTest Core
+# Contributing to monkeytester
 
 Thank you for helping make exploratory AI testing better for everyone. This
 project is **AGPL-3.0** licensed—by contributing, you agree your contributions
@@ -18,8 +18,8 @@ are licensed under the same terms (see [LICENSE](./LICENSE)).
 ## Development setup
 
 ```bash
-git clone https://github.com/monkeytestai/monkeytest-core.git
-cd monkeytest-core
+git clone https://github.com/monkeytestai/monkeytester.git
+cd monkeytester
 npm install
 npx playwright install chromium
 npm run build

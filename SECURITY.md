@@ -3,7 +3,7 @@
 ## Supported versions
 
 We aim to patch security issues in the latest **minor** release line of
-`@monkeytestai/monkeytest-core`. Older majors may not receive fixes.
+`@monkeytestai/monkeytester`. Older majors may not receive fixes.
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -27,7 +27,7 @@ with you on a coordinated disclosure timeline before any public announcement.
 
 In scope for this program:
 
-- The `monkeytest-core` TypeScript package and its published CLI
+- The `monkeytester` TypeScript package and its published CLI
 - Documented public APIs (`Monkey`, `EventBus`, `explore`, `plan`, `runPlan`, etc.)
 
 Out of scope (report to the appropriate project):

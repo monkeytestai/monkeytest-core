@@ -95,7 +95,7 @@ export class EventBus {
       catch (err) {
         // Don't let a buggy listener crash the engine.
         // eslint-disable-next-line no-console
-        console.error('[monkeytest-core] live event listener threw:', err);
+        console.error('[monkeytester] live event listener threw:', err);
       }
     };
     this.emitter.on('event', wrapped);

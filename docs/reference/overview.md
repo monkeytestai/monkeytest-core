@@ -1,6 +1,6 @@
 # Reference: Overview
 
-`@monkeytestai/monkeytester` is a single ESM package with a small, stable surface, published on npm as version **0.5.1** (`npm install @monkeytestai/monkeytester`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
+`@monkeytestai/monkeytester` is a single ESM package with a small, stable surface, published on npm as version **0.6.0** (`npm install @monkeytestai/monkeytester`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
 
 All public exports come from the package root:
 
@@ -31,8 +31,11 @@ import {
 | `CHEAP_FAST_MODEL`, `SMART_MODEL` | Lookup tables of recommended models per provider. |
 | `createLLM` | Low-level: build one `LLM` from one `LLMConfig`. |
 | `explore`, `plan`, `runPlan` | Phase functions, if you want to drive the pipeline yourself. |
-| `triage` | Deterministic rule-based triager. Always free. |
+| `triage` | Deterministic rule-based triager. Always free. Sets `outcome`, `outcome_reason`, and `outcome_detail`. |
 | `triagePolished` | Same triager + optional LLM polish pass for prettier copy. See [Triager polish](/guide/triager). |
+| `resolveDepthPreset`, `DEPTH_PRESETS` | `basic` (Quick pass), `standard`, `deep`, `shallow`. |
+| `isOwnAutomationBug`, `AUTOMATION_FAULT_SIGNATURES` | Playwright misses that must not be confirmed bugs. Superset of mtaiclient `confirmedBugs.js`. |
+| `alignVerdict` | Keeps an LLM verdict only when it matches the filtered bug count. |
 
 ## Result of `executeAndTriage`
 
@@ -44,7 +47,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, opts);
 | ----- | ------------- | ----- |
 | `siteMap` | `{ startUrl, siteType, summary, pages[], pendingUrls[], failedUrls[] }` | Always returned, even if no pages succeeded. |
 | `plan` | `{ startUrl, siteType, flows: TestFlow[], notes? }` | `flows` may be empty if the planner failed; check `notes`. |
-| `run` | `{ flows: FlowResult[], bugs: BugReport[], stats }` | `bugs` are deduplicated and fingerprinted. |
+| `run` | `{ outcome, outcome_reason?, outcome_detail?, flows: FlowResult[], bugs: BugReport[], stats }` | `outcome` is `bugs_found` \| `clean` \| `inconclusive` \| `could_not_test`. `bugs` are deduplicated confirmed site bugs. |
 
 ## Type tree (high level)
 
@@ -58,11 +61,18 @@ TestPlan
  └─ flows: TestFlow[]                 { id, name, kind, startUrl, steps: TestStep[], severityIfFails, expectation }
 
 RunResult
- ├─ flows: FlowResult[]               { flowId, status, durationMs, videoPath?, steps: StepResult[] }
+ ├─ outcome                           bugs_found | clean | inconclusive | could_not_test
+ ├─ outcome_reason?                   login_required | site_unreachable | automation_error | all_flows_skipped | …
+ ├─ outcome_detail?                   sentence that matches bugs.length, plus a next step
+ ├─ flows: FlowResult[]               { flowId, status, outcome_reason?, outcome_detail?, durationMs, videoPath?, steps: StepResult[] }
  │    └─ steps: StepResult[]          { index, action, status, observation, screenshotPath?, consoleErrors[], networkFailures[] }
  ├─ bugs: BugReport[]                 { id, fingerprint, title, severity, evidence: { screenshots[], consoleErrors[], networkFailures[] } }
- └─ stats                             { flowsTotal, flowsPassed, flowsFailed, stepsTotal, stepsPassed, stepsFailed, bugsCritical, bugsMajor, bugsMinor }
+ └─ stats                             { flowsTotal, flowsPassed, flowsFailed, flowsBlocked, flowsInconclusive?, stepsTotal, stepsPassed, stepsFailed, bugsCritical, bugsMajor, bugsMinor }
 ```
+
+`status` on a flow is `passed`, `failed`, `blocked`, `error`, or `inconclusive`. `inconclusive` means every planned step was skipped, or the only failures belonged to the runner. `login_required` is set only when a password field or login form was actually seen.
+
+Import `AUTOMATION_FAULT_SIGNATURES`, `isOwnAutomationBug`, and `matchesClientSoftExploratory` to share the "not a confirmed bug" rule with mtaiserver. `isOwnAutomationBug` is a superset of mtaiclient `src/utils/confirmedBugs.js`. HTTP 5xx, uncaught page errors, disabled controls, and document HTTP 404 stay bugs.
 
 The full `.d.ts` ships next to `dist/index.js` and is the source of truth.
 

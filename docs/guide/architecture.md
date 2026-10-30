@@ -55,7 +55,7 @@ What it does:
 - Executes the chosen tool through Playwright with a per-step timeout.
 - Takes a screenshot **after every step** (success, failure, or blocked).
 - Captures all console errors and failed network requests on the page during the step.
-- Classifies the step: `passed` / `failed` / `blocked` / `skipped`. "Soft" misses (text not found, element not located) become `skipped` observations rather than false-positive bugs.
+- Classifies the step: `passed` / `failed` / `blocked` / `skipped`. Number and tel fields are filled with digits (`555-0100` becomes `5550100` on a number input). Playwright misses (bad selector, strict mode, detached node, "Cannot type text into input") are `skipped`, and a flow of only those steps is `inconclusive`, not a bug and not a pass.
 - Renames the per-flow video to a predictable basename so the SaaS server can serve it without a manifest.
 
 Output: a `RunResult` with `flows[].steps[].screenshotPath`, `videoPath`, `consoleErrors[]`, `networkFailures[]`, and per-step `durationMs`.

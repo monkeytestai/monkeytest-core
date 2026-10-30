@@ -55,6 +55,7 @@ import { createFlowTimeout } from './timeout.js';
 import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
 import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
 import { serializeTrace, serializeTraceStep } from '../trace/serialize.js';
+import { resolveFlowStatus } from './flowStatus.js';
 
 export interface RunnerOptions {
   /**
@@ -671,7 +672,7 @@ function finaliseFlow(
   traceSteps: TraceStep[],
 ): FlowResult {
 
-  const status: FlowResult['status'] = failed ? 'failed' : 'passed';
+  const status = resolveFlowStatus(steps, failed);
   const trace = serializeTrace({
     version: 1,
     flowId: flow.id,
@@ -708,7 +709,7 @@ function emptyRun(plan: TestPlan, startedAt: string): RunResult {
     flows: [],
     bugs: [],
     stats: {
-      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0,
+      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0, flowsInconclusive: 0,
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },
@@ -729,6 +730,7 @@ function aggregateStats(flows: FlowResult[]): RunResult['stats'] {
     flowsPassed: flows.filter(f => f.status === 'passed').length,
     flowsFailed: flows.filter(f => f.status === 'failed' || f.status === 'error').length,
     flowsBlocked: flows.filter(f => f.status === 'blocked').length,
+    flowsInconclusive: flows.filter(f => f.status === 'inconclusive').length,
     stepsTotal, stepsPassed, stepsFailed,
     bugsCritical: 0, bugsMajor: 0, bugsMinor: 0, // filled in by the triager
   };

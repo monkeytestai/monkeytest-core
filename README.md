@@ -79,12 +79,24 @@ npm install @monkeytestai/monkeytester
 npx playwright install chromium
 ```
 
-[@monkeytestai/monkeytester](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.5.1** is the published package. The CLI is `npx monkeytest`.
+[@monkeytestai/monkeytester](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.6.0** is the published package. The CLI is `npx monkeytest`.
 
 ```bash
 export GEMINI_API_KEY="paste-your-key"
-npx monkeytest run https://example.com --max 2 --flows 1
+npx monkeytest run https://example.com --depth basic
 ```
+
+`--depth basic` is the free **Quick pass**: at most 6 pages and 4 flows, biased toward forms, search, and primary buttons. `standard` and `deep` are the broader presets. `--max` and `--flows` still override the preset.
+
+A finished run includes:
+
+| Field | Values |
+| ----- | ------ |
+| `outcome` | `bugs_found`, `clean`, `inconclusive`, `could_not_test` |
+| `outcome_reason` | Short code such as `automation_error`, `all_flows_skipped`, `site_unreachable`, `login_required` (only when a login wall was seen) |
+| `outcome_detail` | A sentence that matches the confirmed bug count, plus a next step |
+
+`could_not_test` means nothing was tested. Playwright errors from the runner are `inconclusive`, not bugs. Map these three fields straight onto `audit_run`.
 
 Screenshots are written to `.monkeytest/shots/`. A free Gemini key, or Ollama on localhost, is in the [quick start](https://docs.monkeytest.ai/guide/quick-start), including where `plan.json`, `runs/`, and `shots/` show up, and how `rerun` / `diff` work.
 
@@ -144,7 +156,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage('https://app.exampl
 });
 
 console.log(`Visited ${siteMap.pages.length} pages, planned ${plan.flows.length} flows.`);
-console.log(`Run: ${run.stats.flowsPassed}/${run.stats.flowsTotal} flows passed.`);
+console.log(`${run.outcome}: ${run.outcome_detail}`);
 
 for (const bug of run.bugs.filter(b => b.severity !== 'minor')){
   console.error(`- [${bug.severity}] ${bug.title}\n  ${bug.observed}`);

@@ -17,13 +17,21 @@ import type { SiteMap, TestPlan, TestFlow } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import { ensurePublicFormFlow } from './forms.js';
 import { ensureFaultSurfaceFlows } from './faults.js';
+import { applyFormsSearchCtaFocus } from './focus.js';
 import { salvageModelFlows } from './salvage.js';
+import type { PlanFocus } from '../depth.js';
 
 export interface PlannerOptions {
   /** Soft cap on flows per plan. Default 6. */
   maxFlows?: number;
   /** Include flows that require auth (the runner will surface them as "needs creds"). Default true. */
   includeAuthFlows?: boolean;
+  /**
+   * `forms-search-cta` is the Quick pass (`--depth basic`): keep a public
+   * form, a search box, and primary buttons, and do not spend the budget on
+   * a disabled control.
+   */
+  focus?: PlanFocus;
   /** Optional live event bus. Receives planner lifecycle events. */
   events?: EventBus;
 }
@@ -150,7 +158,7 @@ Per-call constraints:
       : 'Do NOT include login, sign-in, sign-up, register, OTP, password-reset, or any flow that needs an account. Skip auth-gated pages. Fill the plan with public journeys only.'}
   - If a crawled page lists a public form under "forms:", the engine reserves one flow that starts on that page and submits that form when the flow budget is at least 1, even if every other flow is a shopping journey. Prefer a POST contact, help, support, or feedback form over a search box. Use only the scraped fields and submit label. Do not invent a form URL or a field the crawl did not list. A flow that merely says "submit" on that page does not replace the reserved one.
   - Scraped "controls:" are real buttons and links. The engine also keeps grounded flows for an enabled button, a link whose target was not crawled, and a disabled button when the budget allows. Do not invent a control that is not listed.
-
+${opts.focus === 'forms-search-cta' ? `  - This is a Quick pass. Bias the journeys to public forms, search, and primary calls to action. Do not spend a slot on a disabled control.\n` : ''}
 Reply with JSON:
 {
   "flows": [ ... ],
@@ -194,7 +202,7 @@ Reply with JSON:
     if (publicOnly.length > 0) flows = publicOnly;
   }
 
-  const grounded = groundFlows(siteMap, flows, maxFlows);
+  const grounded = groundFlows(siteMap, flows, maxFlows, opts.focus);
   flows = grounded.flows;
   if (discardedModel && modelProblem) {
     const kept = flows.length > 0
@@ -238,8 +246,8 @@ Reply with JSON:
  * controls, capped at `maxFlows`. Used when the planner model throws before
  * `plan()` can finish, so `executeAndTriage` still has flows to run.
  */
-export function groundedTestPlan(siteMap: SiteMap, maxFlows: number, preface?: string): TestPlan {
-  const grounded = groundFlows(siteMap, [], maxFlows);
+export function groundedTestPlan(siteMap: SiteMap, maxFlows: number, preface?: string, focus?: PlanFocus): TestPlan {
+  const grounded = groundFlows(siteMap, [], maxFlows, focus);
   return {
     startUrl: siteMap.startUrl,
     siteType: siteMap.siteType,
@@ -252,17 +260,27 @@ function groundFlows(
   siteMap: SiteMap,
   modelFlows: TestFlow[],
   maxFlows: number,
+  focus?: PlanFocus,
 ): { flows: TestFlow[]; note?: string } {
   const capped = modelFlows.slice(0, Math.max(0, maxFlows));
   const ensured = ensurePublicFormFlow(capped, siteMap, maxFlows);
   const faults = ensureFaultSurfaceFlows(ensured.flows, siteMap, maxFlows);
+  const focused = focus === 'forms-search-cta'
+    ? applyFormsSearchCtaFocus(faults.flows, siteMap, maxFlows)
+    : undefined;
+  const added = focused
+    ? faults.added.filter(label => focused.flows.some(flow =>
+      flow.steps.some(step => step.action.toLowerCase().includes(label.toLowerCase())),
+    ))
+    : faults.added;
   const note = [
     ensured.injected ? 'Added a form-submit flow for a public form found in the crawl.' : '',
-    faults.added.length
-      ? `Added fault-surface flows for controls the crawl saw (${faults.added.join(', ')}).`
+    added.length
+      ? `Added fault-surface flows for controls the crawl saw (${added.join(', ')}).`
       : '',
+    focused?.note || '',
   ].filter(Boolean).join(' ') || undefined;
-  return { flows: faults.flows, note };
+  return { flows: focused ? focused.flows : faults.flows, note };
 }
 
 function dedupeFlowIds(flows: TestFlow[]): TestFlow[] {

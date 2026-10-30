@@ -49,6 +49,35 @@ export type { VerifyOptions, VerifyReport, BugVerdict, VerifyAttempt, VerifyVerd
 export { triage, triagePolished } from './triager/index.js';
 export type { TriageOptions } from './triager/index.js';
 
+export {
+  AUTOMATION_FAULT_SIGNATURES,
+  automationFaultId,
+  isAutomationFault,
+  isOwnAutomationBug,
+  isRealSiteFailureText,
+  matchesClientSoftExploratory,
+} from './automation/signatures.js';
+export type { AutomationFaultSignature, BugText } from './automation/signatures.js';
+
+export {
+  alignVerdict,
+  attachRunOutcome,
+  classifyRunFlows,
+  deriveRunOutcome,
+  reasonForText,
+  verdictContradicts,
+} from './outcome.js';
+export type { DerivedOutcome, OutcomeContext, VerdictFacts } from './outcome.js';
+
+export {
+  DEPTH_PRESETS,
+  applyDepthPreset,
+  resolveDepthPreset,
+} from './depth.js';
+export type { DepthPreset, DepthPresetName, PlanFocus } from './depth.js';
+
+export { valueForInput, numericText } from './runner/actions.js';
+
 export { bugFingerprint, bugMatchesFingerprint } from './diff/index.js';
 
 export {
@@ -98,6 +127,8 @@ export type {
   StepStatus,
   FlowResult,
   FlowStatus,
+  RunOutcome,
+  OutcomeReason,
   RunResult,
   BugReport,
   BugEvidence,

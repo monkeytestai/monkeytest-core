@@ -6,7 +6,7 @@ How much does a MonkeyTest run cost? It depends on:
 2. **Models** — which LLM you give to each phase.
 3. **Page size** — bigger pages = bigger explorer prompts.
 
-This page gives you **estimated costs** for the three depth presets (`shallow`, `standard`, `deep`) across all supported providers, plus the assumptions and a calculator so you can plug in your own numbers.
+This page gives you **estimated costs** for the depth presets (`basic` / Quick pass, `shallow`, `standard`, `deep`) across all supported providers, plus the assumptions and a calculator so you can plug in your own numbers.
 
 ::: tip Token prices change every month
 We update this page periodically, but always sanity-check against the provider's pricing page before you budget. Treat these numbers as **order of magnitude**, not invoices.
@@ -14,11 +14,28 @@ We update this page periodically, but always sanity-check against the provider's
 
 ## Depth presets
 
-| Depth | `maxPages` | `maxFlows` | Avg steps/flow | Total LLM calls |
-| ----- | ---------- | ---------- | -------------- | --------------- |
-| **Shallow** (smoke) | 4 | 3 | 4 | ~16 (4 explore + 1 plan + 12 run) |
-| **Standard** (default) | 8 | 6 | 6 | ~45 (8 + 1 + 36) |
-| **Deep** (release) | 16 | 10 | 8 | ~97 (16 + 1 + 80) |
+`resolveDepthPreset` and the CLI `--depth` flag use one table. Quick pass is the free run.
+
+| Depth | Id | `maxPages` | `maxFlows` | What it prefers |
+| ----- | -- | ---------- | ---------- | --------------- |
+| **Quick pass** | `basic` | 6 | 4 | Forms, search, and primary CTAs (`focus: 'forms-search-cta'`) |
+| **Shallow** (smoke) | `shallow` | 4 | 3 | The usual floor: a public form and fault-surface controls |
+| **Broader pass** (default caps) | `standard` | 8 | 6 | Same floor, more room for model journeys |
+| **Deeper dig** | `deep` | 16 | 10 | Same floor, more room for model journeys |
+
+```ts
+import { resolveDepthPreset } from '@monkeytestai/monkeytester';
+
+const quick = resolveDepthPreset('basic');
+// quick.label === 'Quick pass'
+// quick.maxPages === 6, quick.maxFlows === 4, quick.focus === 'forms-search-cta'
+```
+
+```bash
+monkeytest run https://example.com --depth basic
+```
+
+`--max` and `--flows` override the preset when you pass them. The old cost table's "shallow / standard / deep" names are still valid ids. `basic` is the one the SaaS already stores for a free run.
 
 ## Token assumptions
 

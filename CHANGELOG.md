@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-30
+
+### Added
+
+- Run outcome fields on `RunResult`, set by `triage()`: `outcome` (`bugs_found` | `clean` | `inconclusive` | `could_not_test`), `outcome_reason` (machine code), and `outcome_detail` (a sentence plus a next step). The names match the SaaS `audit_run` columns. `could_not_test` means nothing was tested (no pages, no flows, or the site was unreachable). `login_required` is used only when a login wall was actually seen.
+- Per-flow `outcome_reason` and `outcome_detail`. Flow status `inconclusive` means every planned step was skipped, or the only failures were the runner's. `stats.flowsInconclusive` counts those flows. Existing statuses keep their meaning.
+- `AUTOMATION_FAULT_SIGNATURES`, `isAutomationFault`, `isOwnAutomationBug`, and `matchesClientSoftExploratory`. These are the Playwright and exploratory misses that must not become confirmed bugs. The list is a superset of mtaiclient `confirmedBugs.js`. A host can import it instead of copying the signatures.
+- `alignVerdict` / `verdictContradicts`. An optional `planner.verdict` LLM sentence is kept only when it agrees with the filtered bug count. "Worked smoothly" beside a bug, or "major bug" with zero bugs, is replaced by the deterministic `outcome_detail`. When the cause is the runner, the sentence says "Our test couldn't complete".
+- Quick pass depth preset. Id `basic`, label "Quick pass": 6 pages, 4 flows, planner focus `forms-search-cta`. CLI `--depth basic` (alias `--depth quick-pass`). `resolveDepthPreset` and `DEPTH_PRESETS` are the same table (`standard`, `deep`, `shallow` included). An explicit `--max` or `--flows` still wins.
+- `valueForInput` / `numericText`. Number and tel fields get digits. `555-0100` typed at a number input becomes `5550100`.
+
+### Fixed
+
+- The runner no longer types `555-0100` into `input[type=number]`. Playwright's "Cannot type text into input" error is classified inconclusive, not a High bug.
+- Playwright and selector failures (not an `<input>`, InvalidSelector, strict mode, detached nodes, element not found, selector timeouts, and the mtaiclient soft-timeout and page-title rules) are inconclusive. HTTP 5xx, uncaught page errors, disabled controls, and document HTTP 404 are still bugs. Fingerprints for those real bugs are unchanged.
+- A flow whose every step was skipped is `inconclusive`, not `passed`.
+
+### Changed
+
+- `new Monkey()` asks the planner model for a one-line verdict and then runs `alignVerdict`. A model failure leaves the deterministic sentence in place. `triage()` itself stays synchronous and does not call a model.
+
+## Notes recorded before 0.6.0
+
+The notes below were already in the tree before 0.6.0 and describe behaviour shipped in 0.5.x.
+
 ### Changed
 
 - README and the docs installed from npm as `npm install @monkeytestai/monkeytest-core` (published 0.4.0). A clone remained the contributor path, including the no-key smoke script. 0.5.0 renames that package to `@monkeytestai/monkeytester`.
@@ -171,6 +196,7 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
+[0.6.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.6.0
 [0.5.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.1
 [0.5.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.0
 [0.4.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.4.1

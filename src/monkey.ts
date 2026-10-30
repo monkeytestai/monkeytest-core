@@ -16,6 +16,8 @@ import { groundedTestPlan, plan, type PlannerOptions } from './planner/index.js'
 import { runPlan, type RunnerOptions } from './runner/index.js';
 import { replayTraces, type ReplayOptions } from './runner/replay.js';
 import { triage, triagePolished } from './triager/index.js';
+import { applyPlannerVerdict } from './planner/verdict.js';
+import { attachRunOutcome } from './outcome.js';
 import { verifyBugs, type VerifyOptions, type VerifyReport } from './verify/index.js';
 import { EventBus, noopBus } from './events.js';
 import type {
@@ -166,9 +168,14 @@ export class Monkey {
         siteMap,
         opts.plan?.maxFlows ?? 6,
         `Planner failed after exploration: ${msg}`,
+        opts.plan?.focus,
       );
       if (fallback.flows.length === 0) {
-        return { siteMap, plan: fallback, run: emptyRun(startUrl) };
+        return {
+          siteMap,
+          plan: fallback,
+          run: finishEmpty(startUrl, siteMap.pages.length, fallback.notes),
+        };
       }
       testPlan = fallback;
     }
@@ -178,7 +185,11 @@ export class Monkey {
         phase: 'planner', type: 'plan.skipped',
         message: 'Planner produced no flows — nothing to execute.',
       });
-      return { siteMap, plan: testPlan, run: emptyRun(startUrl) };
+      return {
+        siteMap,
+        plan: testPlan,
+        run: finishEmpty(startUrl, siteMap.pages.length, testPlan.notes),
+      };
     }
 
     let rawRun: RunResult;
@@ -212,10 +223,15 @@ export class Monkey {
           ...testPlan,
           notes: [testPlan.notes, `Runner failed before executing flows: ${msg}`].filter(Boolean).join('\n'),
         },
-        run: emptyRun(startUrl),
+        run: finishEmpty(startUrl, siteMap.pages.length, `Runner failed before executing flows: ${msg}`),
       };
     }
 
+    const triageOpts = {
+      failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+      pagesVisited: siteMap.pages.length,
+      notes: testPlan.notes,
+    };
     let run: RunResult;
     if (this.triagerLLM){
       // Polished path: rule-based triage runs first inside `triagePolished`,
@@ -224,19 +240,24 @@ export class Monkey {
       run = await triagePolished(rawRun, {
         llm: this.triagerLLM,
         events,
-        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+        ...triageOpts,
       });
     } else {
       events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
-      run = triage(rawRun, { failOn5xx: opts.run.failOn5xx ?? this.failOn5xx });
+      run = triage(rawRun, triageOpts);
       events.emit({
         phase: 'triager', type: 'triage.complete',
         message: run.bugs.length === 0
           ? 'Triage complete: no confirmed bugs.'
           : `Triage complete: ${run.bugs.length} bug${run.bugs.length === 1 ? '' : 's'} reported.`,
-        data: { bugs: run.bugs.length, stats: run.stats },
+        data: { bugs: run.bugs.length, stats: run.stats, outcome: run.outcome },
       });
     }
+
+    run = await applyPlannerVerdict(run, this.plannerLLM, {
+      pagesVisited: siteMap.pages.length,
+      notes: testPlan.notes,
+    });
 
     return { siteMap, plan: testPlan, run };
 
@@ -276,7 +297,7 @@ export class Monkey {
         phase: 'planner', type: 'plan.skipped',
         message: 'runFromPlan called with an empty plan — nothing to execute.',
       });
-      return { plan: testPlan, run: emptyRun(testPlan.startUrl) };
+      return { plan: testPlan, run: finishEmpty(testPlan.startUrl, undefined, testPlan.notes) };
     }
 
     let rawRun: RunResult;
@@ -304,28 +325,33 @@ export class Monkey {
         message: `Re-run failed: ${truncate(msg, 160)}`,
         data: { error: msg },
       });
-      return { plan: testPlan, run: emptyRun(testPlan.startUrl) };
+      return { plan: testPlan, run: finishEmpty(testPlan.startUrl, undefined, msg) };
     }
 
+    const triageOpts = {
+      failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+      notes: testPlan.notes,
+    };
     let run: RunResult;
     if (this.triagerLLM){
       run = await triagePolished(rawRun, {
         llm: this.triagerLLM,
         events,
-        failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
+        ...triageOpts,
       });
     } else {
       events.emit({ phase: 'triager', type: 'triage.start', message: 'Triaging findings…' });
-      run = triage(rawRun, { failOn5xx: opts.run.failOn5xx ?? this.failOn5xx });
+      run = triage(rawRun, triageOpts);
       events.emit({
         phase: 'triager', type: 'triage.complete',
         message: run.bugs.length === 0
           ? 'Triage complete: no confirmed bugs.'
           : `Triage complete: ${run.bugs.length} bug${run.bugs.length === 1 ? '' : 's'} reported.`,
-        data: { bugs: run.bugs.length, stats: run.stats },
+        data: { bugs: run.bugs.length, stats: run.stats, outcome: run.outcome },
       });
     }
 
+    run = await applyPlannerVerdict(run, this.plannerLLM, { notes: testPlan.notes });
     return { plan: testPlan, run };
 
   }
@@ -402,6 +428,7 @@ export class Monkey {
         siteMap,
         opts.plan?.maxFlows ?? 6,
         `Planner failed after exploration: ${msg}`,
+        opts.plan?.focus,
       );
       yield { type: 'error', phase: 'planner', message: msg };
       if (fallback.flows.length === 0) return;
@@ -423,11 +450,15 @@ function emptyRun(startUrl: string): RunResult {
     flows: [],
     bugs: [],
     stats: {
-      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0,
+      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0, flowsInconclusive: 0,
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },
   };
+}
+
+function finishEmpty(startUrl: string, pagesVisited: number | undefined, notes?: string): RunResult {
+  return attachRunOutcome(emptyRun(startUrl), { pagesVisited, notes });
 }
 
 function truncate(s: string, n: number): string {

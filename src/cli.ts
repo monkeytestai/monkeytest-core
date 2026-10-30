@@ -21,6 +21,7 @@
  *   --provider <id>       openai | gemini | anthropic | mistral | groq | openai_compatible
  *   --model <id>          Override model id (provider-specific)
  *   --quality <preset>    cheap | balanced | smart  (used by autoLLMConfig)
+ *   --depth <preset>      basic (Quick pass) | standard | deep | shallow
  *   --max <n>             Max pages to crawl (explore/run only, default 8)
  *   --flows <n>           Max flows to plan (explore/run only, default 6)
  *   --no-headless         Show the browser window
@@ -45,6 +46,7 @@ import { resolve, relative } from 'node:path';
 import { Monkey } from './monkey.js';
 import { createLLM, type LLM } from './llm/index.js';
 import { autoLLMConfig, detectProviderFromEnv, CHEAP_FAST_MODEL } from './llm/presets.js';
+import { applyDepthPreset, type PlanFocus } from './depth.js';
 import {
   savePlan, loadPlan, saveRun, loadRun, listRuns,
   type StoredRun,
@@ -75,7 +77,7 @@ function tty(s: string, code: keyof typeof c): string {
   return process.stdout.isTTY ? `${c[code]}${s}${c.reset}` : s;
 }
 
-const ENGINE_VERSION = 'monkeytester@0.5.1';
+const ENGINE_VERSION = 'monkeytester@0.6.0';
 
 /* ── Arg parsing ──────────────────────────────────────────────────────── */
 
@@ -84,8 +86,16 @@ interface CommonOpts {
   provider?: LLMProvider;
   model?: string;
   quality: 'cheap' | 'balanced' | 'smart';
+  /** Depth preset id. `basic` is Quick pass (6 pages, 4 flows, forms/search/CTAs). */
+  depth?: string;
   maxPages: number;
   maxFlows: number;
+  /** True when the user passed `--max`, so it wins over `--depth`. */
+  maxPagesSet: boolean;
+  /** True when the user passed `--flows`, so it wins over `--depth`. */
+  maxFlowsSet: boolean;
+  /** Planner bias from the depth preset, when it has one. */
+  focus?: PlanFocus;
   headless: boolean;
   label?: string;
   json: boolean;
@@ -110,6 +120,8 @@ function defaultCommonOpts(): CommonOpts {
     quality: 'balanced',
     maxPages: 8,
     maxFlows: 6,
+    maxPagesSet: false,
+    maxFlowsSet: false,
     headless: true,
     json: false,
     heal: false,
@@ -153,8 +165,14 @@ function parseArgs(argv: string[]): Parsed {
       case '--api-key': case '--apikey':   out.opts.apiKey = next(); break;
       case '--base-url':                   out.opts.baseURL = next(); break;
       case '--quality':                    out.opts.quality = next() as CommonOpts['quality']; break;
-      case '-m': case '--max':             out.opts.maxPages = parseInt(next(), 10); break;
-      case '--flows':                      out.opts.maxFlows = parseInt(next(), 10); break;
+      case '--depth': case '--preset': {
+        const name = next();
+        if (!name) die(2, '--depth requires a preset: basic (Quick pass), standard, deep, or shallow');
+        out.opts.depth = name;
+        break;
+      }
+      case '-m': case '--max':             out.opts.maxPages = parseInt(next(), 10); out.opts.maxPagesSet = true; break;
+      case '--flows':                      out.opts.maxFlows = parseInt(next(), 10); out.opts.maxFlowsSet = true; break;
       case '--no-headless':                out.opts.headless = false; break;
       case '--label':                      out.opts.label = next(); break;
       case '--json':                       out.opts.json = true; break;
@@ -178,6 +196,18 @@ function parseArgs(argv: string[]): Parsed {
           die(2, `Unknown flag: ${a}`);
         }
         out.positional.push(a);
+    }
+  }
+
+  if (out.opts.depth) {
+    try {
+      const applied = applyDepthPreset(out.opts.depth, out.opts);
+      out.opts.maxPages = applied.maxPages;
+      out.opts.maxFlows = applied.maxFlows;
+      out.opts.focus = applied.focus;
+      out.opts.depth = applied.preset.id;
+    } catch (err) {
+      die(2, err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -248,8 +278,10 @@ Common flags (apply to most commands):
       --api-key <key>        Override env API key
       --base-url <url>       Required for openai_compatible (Ollama, vLLM, …)
       --quality <preset>     cheap | balanced | smart   (default balanced)
-  -m, --max <n>              Max pages to crawl (default 8)
-      --flows <n>            Max flows to plan (default 6)
+      --depth <preset>       basic (Quick pass) | standard | deep | shallow
+                             basic: 6 pages, 4 flows, biased to forms, search, and primary CTAs
+  -m, --max <n>              Max pages to crawl (default 8, or the depth preset)
+      --flows <n>            Max flows to plan (default 6, or the depth preset)
       --no-headless          Show the browser window
       --label <text>         Free-form label saved on the plan/run
       --heal                 If a recorded locator misses, ask the LLM (rerun/verify)
@@ -280,11 +312,13 @@ Docs: https://docs.monkeytest.ai
   const text: Record<string, string> = {
     init: `monkeytest init [--dir .monkeytest]
 Scaffold a working directory with config defaults. Idempotent.`,
-    explore: `monkeytest explore <url> [--max 8] [--flows 6] [--no-headless]
-Crawl <url>, summarise pages, generate a TestPlan. Writes plan.json + shots/.`,
-    run: `monkeytest run <url> [--max 8] [--flows 6] [--quality balanced]
+    explore: `monkeytest explore <url> [--max 8] [--flows 6] [--depth basic] [--no-headless]
+Crawl <url>, summarise pages, generate a TestPlan. Writes plan.json + shots/.
+--depth basic is Quick pass: at most 6 pages and 4 flows, biased to forms, search, and primary CTAs.`,
+    run: `monkeytest run <url> [--max 8] [--flows 6] [--depth basic] [--quality balanced]
 Run the full pipeline (explore + plan + run + triage). Writes plan.json,
 runs/<id>.json, and screenshots. Exits with code 1 if blocking bugs found.
+--depth basic is Quick pass (6 pages, 4 flows, forms, search, and primary CTAs).
 Same-origin HTTP ≥500 responses fail the step (--no-fail-on-5xx opts out).
 The crawl reserves room for help/contact/about pages under a small --max.
 A crawled form, an enabled button, a link to a page the crawl did not open,
@@ -328,6 +362,7 @@ async function cmdInit(opts: CommonOpts){
       $schema: 'https://docs.monkeytest.ai/config-schema-v1.json',
       provider: opts.provider || 'auto',
       quality: opts.quality,
+      depth: opts.depth,
       maxPages: opts.maxPages,
       maxFlows: opts.maxFlows,
     }, null, 2));
@@ -372,7 +407,7 @@ async function cmdExplore(url: string | undefined, opts: CommonOpts){
       screenshotsDir,
       onPage: (p) => console.log(`  · visited [${p.authGated ? 'auth' : 'open'}] ${p.url} — ${truncate(p.summary, 80)}`),
     },
-    plan: { maxFlows: opts.maxFlows },
+    plan: { maxFlows: opts.maxFlows, focus: opts.focus },
   });
 
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
@@ -407,7 +442,7 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
       screenshotsDir,
       onPage: (p) => console.log(`  · visited ${p.url}`),
     },
-    plan: { maxFlows: opts.maxFlows },
+    plan: { maxFlows: opts.maxFlows, focus: opts.focus },
     run:  {
       screenshotsDir,
       headless: opts.headless,
@@ -703,11 +738,15 @@ function summarisePlan(plan: { flows: { name: string; kind: string; steps: unkno
   return `\n${tty('Plan', 'bold')}\n${lines.join('\n')}${plan.notes ? `\n  notes: ${plan.notes}` : ''}`;
 }
 
-function summariseRun(run: { stats: { flowsTotal: number; flowsPassed: number; flowsFailed: number; bugsCritical: number; bugsMajor: number; bugsMinor: number } }): string {
+function summariseRun(run: { outcome?: string; outcome_reason?: string; outcome_detail?: string; stats: { flowsTotal: number; flowsPassed: number; flowsFailed: number; bugsCritical: number; bugsMajor: number; bugsMinor: number } }): string {
   const { flowsTotal, flowsPassed, flowsFailed, bugsCritical, bugsMajor, bugsMinor } = run.stats;
+  const outcome = run.outcome
+    ? `\n  outcome:  ${tty(run.outcome, run.outcome === 'bugs_found' ? 'red' : run.outcome === 'clean' ? 'green' : 'yellow')}${run.outcome_reason ? ` (${run.outcome_reason})` : ''}`
+    : '';
+  const detail = run.outcome_detail ? `\n  ${truncate(run.outcome_detail, 220)}` : '';
   return `\n${tty('Run', 'bold')}
   flows:    ${tty(`${flowsPassed}/${flowsTotal}`, flowsFailed === 0 ? 'green' : 'yellow')} passed, ${flowsFailed} failed
-  bugs:     ${tty(String(bugsCritical), bugsCritical ? 'red' : 'dim')} critical, ${tty(String(bugsMajor), bugsMajor ? 'yellow' : 'dim')} major, ${tty(String(bugsMinor), 'dim')} minor`;
+  bugs:     ${tty(String(bugsCritical), bugsCritical ? 'red' : 'dim')} critical, ${tty(String(bugsMajor), bugsMajor ? 'yellow' : 'dim')} major, ${tty(String(bugsMinor), 'dim')} minor${outcome}${detail}`;
 }
 
 function printDiffSection(title: string, entries: { fingerprint: string; bug: BugReport }[], colour: keyof typeof c){

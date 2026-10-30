@@ -20,22 +20,33 @@ export interface RankedForm {
   score: number;
 }
 
+/**
+ * A header search box. It must not take the public-form slot, and Quick pass
+ * still gets its own search journey from the same check.
+ */
+export function isSearchBox(pageUrl: string, form: SiteMapForm): boolean {
+  if (looksLikeAuthUrl(pageUrl)) return false;
+  const method = (form.method || 'get').toLowerCase();
+  const actionPath = pathOf(form.action);
+  const fields = form.fields.join(' ');
+  const typedSearch = (form.inputs || []).some(input => (input.type || '').toLowerCase() === 'search');
+  return typedSearch
+    || /\/search(?:\/|$|\?)/i.test(actionPath)
+    || (method !== 'post' && form.fields.length <= 1 && /\b(q|query|search)\b/i.test(fields));
+}
+
 /** Prefer a POST contact/help form over a header search box. */
 export function scorePublicForm(pageUrl: string, form: SiteMapForm): number {
   if (looksLikeAuthUrl(pageUrl)) return -1;
   const method = (form.method || 'get').toLowerCase();
   const action = form.action || '';
-  const actionPath = pathOf(action);
-  const fields = form.fields.join(' ');
   let score = 0;
   if (isFormSurfaceLink({ url: pageUrl, text: form.submitLabel })) score += 50;
   if (action && isFormSurfaceLink({ url: action, text: form.submitLabel })) score += 50;
   if (method === 'post') score += 30;
   if (form.fields.length > 0) score += 5;
   if (form.submitLabel) score += 5;
-  const searchBox = /\/search(?:\/|$|\?)/i.test(actionPath)
-    || (method !== 'post' && form.fields.length <= 1 && /\b(q|query|search)\b/i.test(fields));
-  if (searchBox) score -= 40;
+  if (isSearchBox(pageUrl, form)) score -= 40;
   return score;
 }
 

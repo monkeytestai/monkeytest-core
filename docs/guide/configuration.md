@@ -76,6 +76,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, {
 | ------ | ------- | ------- |
 | `maxFlows` | `6` | Soft cap on flows the planner can return. |
 | `includeAuthFlows` | `true` | Include flows the LLM tagged `auth_required` (the runner surfaces them as "needs creds"). |
+| `focus` | (none) | `forms-search-cta` on Quick pass (`--depth basic`). Keeps a public form, a search box, and primary buttons. |
 | `events` | (none) | `EventBus`. |
 
 ### `RunnerOptions`

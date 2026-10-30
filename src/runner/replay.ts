@@ -14,7 +14,6 @@ import type { LLM } from '../llm/index.js';
 import { logModelDetail } from '../llm/coerce.js';
 import type {
   FlowResult,
-  FlowStatus,
   FlowTrace,
   RunResult,
   StepResult,
@@ -33,6 +32,7 @@ import {
 import { createFlowTimeout } from './timeout.js';
 import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
 import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
+import { resolveFlowStatus } from './flowStatus.js';
 
 export interface ReplayOptions {
   screenshotsDir: string;
@@ -253,7 +253,7 @@ async function replayFlow(
     }
   }
 
-  const status: FlowStatus = failed ? 'failed' : 'passed';
+  const status = resolveFlowStatus(steps, failed);
   return {
     flowId: trace.flowId,
     name: trace.name || trace.flowId,
@@ -535,6 +535,7 @@ function aggregate(flows: FlowResult[]): RunResult['stats'] {
     flowsPassed: flows.filter(flow => flow.status === 'passed').length,
     flowsFailed: flows.filter(flow => flow.status === 'failed' || flow.status === 'error').length,
     flowsBlocked: flows.filter(flow => flow.status === 'blocked').length,
+    flowsInconclusive: flows.filter(flow => flow.status === 'inconclusive').length,
     stepsTotal, stepsPassed, stepsFailed,
     bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
   };
@@ -548,7 +549,7 @@ function emptyReplay(startedAt: string): RunResult {
     flows: [],
     bugs: [],
     stats: {
-      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0,
+      flowsTotal: 0, flowsPassed: 0, flowsFailed: 0, flowsBlocked: 0, flowsInconclusive: 0,
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },

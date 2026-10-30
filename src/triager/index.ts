@@ -38,6 +38,8 @@ import { type EventBus, noopBus } from '../events.js';
 import { failureLocation, fingerprintFailure, legacyFingerprint } from '../trace/fingerprint.js';
 import { bugTracePrefix } from '../trace/serialize.js';
 import { applySameOrigin5xxToRun } from '../runner/http5xx.js';
+import { attachRunOutcome, classifyRunFlows, type OutcomeContext } from '../outcome.js';
+import { isOwnAutomationBug } from '../automation/signatures.js';
 
 export interface TriageOptions {
   /**
@@ -60,6 +62,10 @@ export interface TriageOptions {
    * existing library bug counts.
    */
   failOn5xx?: boolean;
+  /** Pages the explorer opened. `0` makes an empty run `could_not_test`. */
+  pagesVisited?: number;
+  /** Planner or explorer note, used when the run never started. */
+  notes?: string;
 }
 
 /* ── Public entry ─────────────────────────────────────────────────────── */
@@ -68,9 +74,10 @@ export interface TriageOptions {
  * Synchronous, deterministic triage. Always available, always cheap. Use this
  * as a floor; layer `triagePolished` on top when you want LLM-improved copy.
  */
-export function triage(run: RunResult, opts: { failOn5xx?: boolean } = {}): RunResult {
+export function triage(run: RunResult, opts: OutcomeContext & { failOn5xx?: boolean } = {}): RunResult {
   const prepared = opts.failOn5xx ? applySameOrigin5xxToRun(run) : run;
-  return collapseAndScore(prepared);
+  const classified = classifyRunFlows(prepared);
+  return attachRunOutcome(collapseAndScore(classified), opts);
 }
 
 /**
@@ -155,6 +162,13 @@ function collapseAndScore(run: RunResult): RunResult {
     for (const step of flow.steps){
 
       if (step.status !== 'failed') continue;
+      if (isOwnAutomationBug({
+        severity: 'major',
+        title: step.observation || step.action,
+        observed: step.observation,
+        expected: step.expectation,
+        error: step.error,
+      })) continue;
 
       const bug = bugFromStep(flow, step);
       const existing = byFingerprint.get(bug.fingerprint);

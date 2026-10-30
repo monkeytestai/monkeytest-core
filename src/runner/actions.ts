@@ -14,6 +14,7 @@ import type {
   TraceLocator,
   TraceLocatorStrategy,
 } from '../types.js';
+import { isAutomationFault } from '../automation/signatures.js';
 
 const ACTION_TOOLS = ['click', 'fill', 'goto', 'wait', 'assert_text', 'press', 'noop'] as const;
 const ACTION_LOCATORS = ['css', 'role', 'text', 'placeholder', 'label', 'testid'] as const;
@@ -158,28 +159,34 @@ export function groundFillAction(
   const wanted = (action.target || '').trim();
   if (!wanted) return action;
   if (action.locator === 'css' && (inputByNameSelector(skeleton.inputs, wanted) || /[[\]#.=]/.test(wanted))) {
-    return action;
+    const known = inputByNameSelector(skeleton.inputs, wanted);
+    if (!known) return action;
+    const value = valueForInput(known, action.value);
+    return action.value === value ? action : { ...action, value };
   }
 
   const placeholderOnly = action.locator === 'placeholder'
     ? findInput(skeleton.inputs, wanted, 'placeholder')
     : undefined;
-  if (placeholderOnly && !placeholderOnly.label && !placeholderOnly.name) return action;
+  if (placeholderOnly && !placeholderOnly.label && !placeholderOnly.name) {
+    const value = valueForInput(placeholderOnly, action.value);
+    return value === action.value ? action : { ...action, value };
+  }
 
   const input = placeholderOnly || findInput(skeleton.inputs, wanted);
   if (!input || (!input.label && !input.name)) return action;
 
   const grounded = fillActionForInput(input, action.value, action.rationale);
-  if (action.locator === grounded.locator && action.target === grounded.target) return action;
+  const withValue = action.value === grounded.value ? action : { ...action, value: grounded.value };
+  if (action.locator === grounded.locator && action.target === grounded.target) return withValue;
   const inventedPlaceholder = action.locator === 'placeholder';
   const labelMiss = action.locator === 'label' && !(input.label && sameField(input.label, wanted) && action.target === input.label);
   const bareCss = !action.locator || (action.locator === 'css' && !/[[\]#.=]/.test(wanted));
-  if (!inventedPlaceholder && !labelMiss && !bareCss) return action;
+  if (!inventedPlaceholder && !labelMiss && !bareCss) return withValue;
   return {
-    ...action,
+    ...withValue,
     locator: grounded.locator,
     target: grounded.target,
-    value: action.value ?? grounded.value,
     rationale: grounded.rationale,
   };
 }
@@ -189,7 +196,7 @@ function fillActionForInput(
   value: string | undefined,
   rationale?: string,
 ): ResolvedAction {
-  const sample = value ?? sampleFieldValue(input);
+  const sample = valueForInput(input, value);
   if (input.label) {
     return {
       tool: 'fill',
@@ -242,15 +249,72 @@ function nameSelector(name: string): string {
 }
 
 function sampleFieldValue(input: { label?: string; placeholder?: string; name?: string; type?: string }): string {
-  const blob = `${input.type || ''} ${input.name || ''} ${input.label || ''} ${input.placeholder || ''}`.toLowerCase();
-  if (blob.includes('email')) return 'qa@example.com';
-  if (blob.includes('phone') || blob.includes('tel')) return '555-0100';
-  if (blob.includes('url') || blob.includes('website')) return 'https://example.com';
-  if (/\bdate\b/.test(blob)) return '2026-01-15';
-  if (input.type === 'number' || blob.includes('qty') || blob.includes('quantity')) return '1';
-  if (blob.includes('message') || blob.includes('comment') || input.type === 'textarea') return 'Hello from monkeytest';
-  if (blob.includes('name')) return 'Test User';
-  return 'test';
+  return valueForInput(input);
+}
+
+/**
+ * A value Playwright can type into this control.
+ *
+ * `input[type=number]` and `tel` always get digits. `555-0100` is not a
+ * number, and Playwright throws "Cannot type text into input" if it is
+ * typed into a number field. A caller-supplied value is kept when it
+ * already matches the type, and rewritten when it does not.
+ */
+export function valueForInput(
+  input: { label?: string; placeholder?: string; name?: string; type?: string },
+  proposed?: string,
+): string {
+  const type = (input.type || '').toLowerCase();
+  const blob = `${type} ${input.name || ''} ${input.label || ''} ${input.placeholder || ''}`.toLowerCase();
+  const given = proposed?.trim();
+
+  if (type === 'number' || type === 'range') {
+    return numericText(given, blob.includes('phone') || blob.includes('tel') ? '5550100' : '1');
+  }
+  if (type === 'tel') return numericText(given, '5550100');
+  if (type === 'email' || (type !== 'number' && blob.includes('email'))) {
+    if (given && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(given)) return given;
+    return 'qa@example.com';
+  }
+  if (type === 'url' || blob.includes('url') || blob.includes('website')) {
+    if (given && /^https?:\/\//i.test(given)) return given;
+    return 'https://example.com';
+  }
+  if (type === 'date' || (type !== 'datetime-local' && /\bdate\b/.test(blob))) {
+    if (given && /^\d{4}-\d{2}-\d{2}$/.test(given)) return given;
+    return '2026-01-15';
+  }
+  if (type === 'datetime-local') {
+    if (given && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(given)) return given;
+    return '2026-01-15T09:00';
+  }
+  if (type === 'time') {
+    if (given && /^\d{2}:\d{2}/.test(given)) return given;
+    return '09:00';
+  }
+  if (type === 'month') return given && /^\d{4}-\d{2}$/.test(given) ? given : '2026-01';
+  if (type === 'week') return given && /^\d{4}-W\d{2}$/.test(given) ? given : '2026-W03';
+  if (type === 'color') return given && /^#[0-9a-f]{6}$/i.test(given) ? given : '#336699';
+  if (type === 'password') return given && given.length >= 8 ? given : 'Test-password-1';
+  if (type === 'search' || blob.includes('search')) return given && given.length > 0 ? given : 'banana';
+  if (blob.includes('phone') || blob.includes('tel')) return numericText(given, '5550100');
+  if (blob.includes('qty') || blob.includes('quantity') || blob.includes('amount')) return numericText(given, '1');
+  if (blob.includes('message') || blob.includes('comment') || type === 'textarea') {
+    return given && given.length > 0 ? given : 'Hello from monkeytest';
+  }
+  if (blob.includes('name')) return given && given.length > 0 ? given : 'Test User';
+  return given && given.length > 0 ? given : 'test';
+}
+
+/** Digits only. `555-0100` becomes `5550100`. A non-numeric word becomes `fallback`. */
+export function numericText(proposed: string | undefined, fallback: string): string {
+  if (proposed) {
+    const trimmed = proposed.trim();
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed;
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits) return digits;
+  }
+  return fallback;
 }
 
 export async function resolveAction(
@@ -351,8 +415,16 @@ export async function executeAction(
 
       case 'fill': {
         const locator = buildLocator(page, action);
-        await locator.first().fill(action.value ?? '', { timeout: timeoutMs });
-        return { status: 'passed', observation: `Typed "${truncate(action.value ?? '', 40)}" into ${describeTarget(action)}.` };
+        const meta = await readFillTarget(locator);
+        if (meta?.type === 'checkbox' || meta?.type === 'radio') {
+          await locator.first().check({ timeout: timeoutMs });
+          return { status: 'passed', observation: `Checked ${describeTarget(action)}.` };
+        }
+        const safeValue = meta
+          ? valueForInput(meta, action.value ?? '')
+          : (action.value ?? '');
+        await locator.first().fill(safeValue, { timeout: timeoutMs });
+        return { status: 'passed', observation: `Typed "${truncate(safeValue, 40)}" into ${describeTarget(action)}.` };
       }
 
       case 'goto': {
@@ -411,10 +483,11 @@ export async function executeAction(
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (isSoftAutomationMiss(msg)){
+    if (isAutomationFault(msg) || isSoftAutomationMiss(msg)){
       return {
         status: 'skipped',
-        observation: `${capitalise(action.tool)} on ${describeTarget(action)} could not be completed by the agent (${truncate(msg, 140)}). Treated as inconclusive rather than a product bug.`,
+        observation: `Our test couldn't complete ${action.tool} on ${describeTarget(action)} (${truncate(msg, 180)}). Treated as inconclusive rather than a product bug.`,
+        error: msg,
       };
     }
     return {
@@ -631,13 +704,31 @@ async function failIfDisabled(locator: Locator, action: ResolvedAction): Promise
 
 function isSoftAutomationMiss(msg: string): boolean {
   const lower = msg.toLowerCase();
-  return lower.includes('timeout') && (
+  return (lower.includes('timeout') && (
     lower.includes('waiting for locator')
     || lower.includes('locator.fill')
     || lower.includes('locator.click')
     || lower.includes('locator.press')
     || lower.includes('locator.waitfor')
-  );
+  )) || lower.includes('waiting for getby');
+}
+
+async function readFillTarget(locator: Locator): Promise<{ type?: string; label?: string; name?: string; placeholder?: string } | undefined> {
+  try {
+    if (await locator.count() < 1) return undefined;
+    return await locator.first().evaluate(el => {
+      const input = el as HTMLInputElement;
+      const type = (input.type || el.getAttribute('type') || '').toLowerCase();
+      return {
+        type: type || el.tagName.toLowerCase(),
+        label: (el.getAttribute('aria-label') || '').trim() || undefined,
+        name: input.name || undefined,
+        placeholder: input.placeholder || undefined,
+      };
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function truncate(s: string, n: number): string {

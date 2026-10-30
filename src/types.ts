@@ -287,7 +287,40 @@ export interface StepResult {
   error?: string;
 }
 
-export type FlowStatus = 'passed' | 'failed' | 'blocked' | 'error';
+export type FlowStatus = 'passed' | 'failed' | 'blocked' | 'error' | 'inconclusive';
+
+/**
+ * Run-level outcome. Wire names match the SaaS `audit_run` columns.
+ *
+ * `bugs_found` — one or more confirmed site bugs.
+ * `clean` — at least one journey actually ran and no confirmed bugs.
+ * `inconclusive` — we reached the site, but did not finish a real check
+ * (every step skipped, or the only failures were ours).
+ * `could_not_test` — nothing was tested: no pages, no flows, or the site
+ * was unreachable, blocked, or not a URL.
+ */
+export type RunOutcome = 'bugs_found' | 'clean' | 'inconclusive' | 'could_not_test';
+
+/**
+ * Short machine code for `outcome_reason`. The first seven are the SaaS
+ * examples. `automation_error`, `not_attempted`, and `nothing_tested` are
+ * additive codes for cases those examples do not name.
+ *
+ * `login_required` is used only when a step or page shows a real login wall
+ * (a password field, a login form). A flow the planner skipped because it
+ * was marked `auth_required` is `not_attempted`.
+ */
+export type OutcomeReason =
+  | 'login_required'
+  | 'blocked_by_bot_protection'
+  | 'site_unreachable'
+  | 'invalid_url'
+  | 'llm_error'
+  | 'all_flows_skipped'
+  | 'timeout'
+  | 'automation_error'
+  | 'not_attempted'
+  | 'nothing_tested';
 
 export interface FlowResult {
   flowId: string;
@@ -298,6 +331,15 @@ export interface FlowResult {
   status: FlowStatus;
   /** Why the flow as a whole failed, if it did. */
   failureReason?: string;
+  /**
+   * Machine code when this flow did not produce a confirmed bug: skipped,
+   * blocked, errored, or inconclusive. Omitted on a flow that passed or
+   * that failed with a real site bug. `login_required` is set only when a
+   * login wall was actually observed.
+   */
+  outcome_reason?: OutcomeReason;
+  /** Human sentence for this flow, including what to do next. */
+  outcome_detail?: string;
   steps: StepResult[];
   /** Wall-clock duration in milliseconds. */
   durationMs: number;
@@ -324,6 +366,18 @@ export interface RunResult {
   finishedAt: string;
   flows: FlowResult[];
   bugs: BugReport[];
+  /**
+   * SaaS outcome. `bugs_found | clean | inconclusive | could_not_test`.
+   * Omitted on runs saved before 0.6.0. `triage()` always sets it.
+   */
+  outcome?: RunOutcome;
+  /** Short machine code. See `OutcomeReason`. Omitted for `clean` and `bugs_found`. */
+  outcome_reason?: OutcomeReason;
+  /**
+   * One or two sentences that agree with `bugs.length`, plus a next step.
+   * When the cause is the runner, the sentence says "Our test couldn't complete".
+   */
+  outcome_detail?: string;
   /** Aggregate stats for quick UI rendering. */
   stats: {
     flowsTotal: number;
@@ -331,6 +385,8 @@ export interface RunResult {
     flowsFailed: number;
     /** Login / credential flows that were not executed. */
     flowsBlocked: number;
+    /** Flows where every step was skipped, or the only failures were ours. */
+    flowsInconclusive?: number;
     stepsTotal: number;
     stepsPassed: number;
     stepsFailed: number;

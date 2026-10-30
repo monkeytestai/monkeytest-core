@@ -55,6 +55,25 @@ It returns a strict JSON object:
 
 `severity`, `fingerprint`, `affectedFlow`, `reproSteps`, `evidence`, and `id` are **never touched**. The polish only edits the prose fields.
 
+## What is not a bug
+
+`triage()` drops failures that are the runner's, not the site's, and sets the run outcome from what remains:
+
+| `outcome` | When |
+| --------- | ---- |
+| `bugs_found` | One or more confirmed site bugs. |
+| `clean` | At least one journey actually ran, and `bugs.length` is 0. |
+| `inconclusive` | The site was reached, but every check was skipped or failed inside the runner. |
+| `could_not_test` | Nothing was tested: 0 pages, 0 flows, or the site was unreachable. |
+
+`outcome_reason` is a short code (`automation_error`, `all_flows_skipped`, `site_unreachable`, `invalid_url`, `llm_error`, `timeout`, `blocked_by_bot_protection`, `login_required`, `not_attempted`, `nothing_tested`). `login_required` is used only when a password field or login form was seen. A flow the planner merely tagged `auth_required` is `not_attempted`.
+
+`outcome_detail` is a deterministic sentence plus a next step. It agrees with `bugs.length`. An optional planner verdict is kept only when `alignVerdict` says it does not contradict that count. When the cause is the runner, the sentence says "Our test couldn't complete".
+
+The signature list is `AUTOMATION_FAULT_SIGNATURES`. `isOwnAutomationBug` is the check mtaiserver can call. It includes every miss mtaiclient `confirmedBugs.js` drops, plus `Cannot type text into input`, `not an <input>`, InvalidSelector, strict mode, detached nodes, and selector timeouts. HTTP 5xx, uncaught page errors, disabled controls, and document HTTP 404 are still bugs, and their fingerprints are unchanged.
+
+A flow whose every step was skipped has status `inconclusive`, not `passed`.
+
 ## Resilience guarantees
 
 The polish pass is designed so you can leave it on in production without worrying:

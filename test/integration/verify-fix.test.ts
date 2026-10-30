@@ -1,7 +1,10 @@
 /**
- * End-to-end: a local page with a deliberate bug, a stub LLM (the same shape
- * as scripts/smoke.mjs), then a fixed page. `verify` must report the bug
+ * End-to-end: a local page with a deliberate product bug (a disabled Place
+ * order button), a stub LLM, then a fixed page. `verify` must report the bug
  * fixed and must not call the LLM while doing it.
+ *
+ * A non-editable stand-in (`div role=textbox`) is a runner miss and is not a
+ * bug. This fixture uses a disabled control, which strict oracles still file.
  */
 
 import { spawn } from 'node:child_process';
@@ -22,21 +25,17 @@ import { verifyBugs } from '../../src/verify/index.js';
 
 type Mode = 'buggy' | 'fixed' | 'renamed';
 
-const COPY = 'Enter the email address for this checkout. The receipt is sent to that address.';
-
 function page(mode: Mode): string {
-  const field = mode === 'buggy'
-    ? '<div role="textbox" aria-label="Email" data-testid="email">not-an-input</div>'
-    : mode === 'fixed'
-      ? '<input aria-label="Email" data-testid="email" />'
-      : '<label for="work">Work inbox</label><input id="work" aria-label="Work inbox" />';
+  const renamed = mode === 'renamed';
+  const label = renamed ? 'Submit order' : 'Place order';
+  const id = renamed ? 'submit' : 'place';
+  const disabled = mode === 'buggy' ? ' disabled' : '';
   return `<!doctype html>
 <html><head><title>Checkout</title></head>
 <body>
   <h1>Checkout</h1>
-  <p>${COPY}</p>
-  ${field}
-  <button type="button">Place order</button>
+  <p>Review the order, then place it.</p>
+  <button type="button" id="${id}"${disabled}>${label}</button>
 </body></html>`;
 }
 
@@ -54,21 +53,19 @@ describe('verify reports a fixed bug', () => {
       llmCalls.push(label || '');
       if (label !== 'runner.resolveAction') throw new Error(`unexpected LLM label ${label}`);
       const text = String(prompt);
-      if (text.includes('Work inbox')) {
+      if (text.includes('Submit order')) {
         return {
-          tool: 'fill',
-          target: 'textbox:Work inbox',
+          tool: 'click',
+          target: 'button:Submit order',
           locator: 'role',
-          value: 'ada@example.com',
-          rationale: 'The email field was renamed.',
+          rationale: 'The order button was renamed.',
         };
       }
       return {
-        tool: 'fill',
-        target: 'textbox:Email',
+        tool: 'click',
+        target: 'button:Place order',
         locator: 'role',
-        value: 'ada@example.com',
-        rationale: 'Fill the email field.',
+        rationale: 'Place the order.',
       };
     },
   };
@@ -103,17 +100,16 @@ describe('verify reports a fixed bug', () => {
     expect(bug.fingerprintParts).toMatchObject({
       version: 2,
       category: 'interaction',
-      role: 'textbox',
-      name: 'email',
-      errorSignal: 'not-editable',
+      role: 'button',
+      name: 'place order',
+      errorSignal: 'element-disabled',
     });
     expect(bug.fingerprintParts?.location.startsWith(baseUrl.replace(/\/$/, ''))).toBe(true);
-    expect(JSON.stringify(bug.fingerprintParts)).not.toContain('fill');
-    expect(bug.trace?.steps.map(step => step.tool)).toEqual(['goto', 'fill']);
+    expect(JSON.stringify(bug.fingerprintParts)).not.toContain('click');
+    expect(bug.trace?.steps.map(step => step.tool)).toEqual(['goto', 'click']);
     expect(bug.trace?.steps[1]).toMatchObject({
       status: 'failed',
-      value: 'ada@example.com',
-      locator: { role: 'textbox', name: 'Email', testId: 'email' },
+      locator: { role: 'button', name: 'Place order' },
     });
     expect(bug.evidence.screenshots.length).toBeGreaterThan(0);
 
@@ -125,6 +121,7 @@ describe('verify reports a fixed bug', () => {
       repeat: 1,
       headless: true,
       recordVideo: false,
+      strictOracles: true,
       llm,
     });
     expect(still.results[0].verdict).toBe('still_broken');
@@ -142,6 +139,7 @@ describe('verify reports a fixed bug', () => {
       repeat: 1,
       headless: true,
       recordVideo: false,
+      strictOracles: true,
       llm,
     });
     expect(fixed.results[0].verdict).toBe('fixed');
@@ -160,6 +158,7 @@ describe('verify reports a fixed bug', () => {
       screenshotsDir: shots,
       headless: true,
       recordVideo: false,
+      strictOracles: true,
     });
     expect(blocked.results[0].verdict).toBe('blocked');
     expect(blocked.exitCode).toBe(0);
@@ -168,6 +167,7 @@ describe('verify reports a fixed bug', () => {
       screenshotsDir: shots,
       headless: true,
       recordVideo: false,
+      strictOracles: true,
       heal: true,
       llm,
     });
@@ -184,14 +184,14 @@ async function execute(url: string, shots: string, llm: LLM): Promise<RunResult>
     flows: [{
       id: 'checkout',
       name: 'Checkout',
-      description: 'Enter an email address',
+      description: 'Place the order',
       kind: 'happy_path',
       startUrl: url,
-      expectation: 'The email field accepts input',
+      expectation: 'The order button can be used',
       severityIfFails: 'major',
       steps: [{
-        action: 'Type ada@example.com into the Email field',
-        expectation: 'The email field accepts input.',
+        action: 'Click "Place order"',
+        expectation: 'The order button is enabled.',
       }],
     }],
   };
@@ -199,6 +199,7 @@ async function execute(url: string, shots: string, llm: LLM): Promise<RunResult>
     screenshotsDir: shots,
     headless: true,
     recordVideo: false,
+    strictOracles: true,
     stepTimeoutMs: 5_000,
   });
   return triage(raw);

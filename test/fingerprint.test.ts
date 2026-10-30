@@ -144,29 +144,39 @@ describe('legacyFingerprint', () => {
 });
 
 describe('triage fingerprints', () => {
-  it('keeps the v1 hash on fingerprint and shares fingerprintV2 across tools', () => {
+  it('does not file a bug for a selector timeout', () => {
     const click = triage(runWith([failedStep('click', 'Timeout 15000ms exceeded waiting for locator("#save")')]));
-    const fill = triage(runWith([failedStep('fill', 'Timeout 10ms exceeded waiting for locator("#save") id 99999')]));
+    expect(click.bugs).toHaveLength(0);
+    expect(click.flows[0].steps.find(step => step.index === 2)?.status).toBe('skipped');
+    expect(click.outcome).toBe('clean');
+    expect(click.outcome_detail?.toLowerCase()).not.toMatch(/major bug/);
+  });
+
+  it('keeps the v1 hash on a real page error and shares fingerprintV2 across tools', () => {
+    const error = 'pageerror: Cannot read properties of undefined';
+    const click = triage(runWith([failedStep('click', error)]));
+    const fill = triage(runWith([failedStep('fill', error)]));
     expect(click.bugs).toHaveLength(1);
     expect(click.bugs[0].fingerprint).toBe(legacyFingerprint({
       action: 'Press save',
       tool: 'click',
-      error: 'Timeout 15000ms exceeded waiting for locator("#save")',
+      error,
     }));
     expect(fill.bugs[0].fingerprint).not.toBe(click.bugs[0].fingerprint);
     expect(fill.bugs[0].fingerprintV2).toBe(click.bugs[0].fingerprintV2);
     expect(click.bugs[0].id.endsWith(click.bugs[0].fingerprint.slice(0, 6))).toBe(true);
     expect(click.bugs[0].fingerprintParts).toMatchObject({
       version: 2,
-      category: 'interaction',
+      category: 'page-error',
       role: 'button',
       name: 'save',
-      errorSignal: 'target-not-found',
+      errorSignal: 'page-error',
       location: 'https://shop.example/checkout',
     });
     expect(click.bugs[0].trace?.steps.map(step => step.index)).toEqual([0, 1, 2]);
     expect(click.bugs[0].trace?.steps.some(step => step.tool === 'click')).toBe(true);
     expect(click.bugs[0].evidence.screenshots).toEqual(['/tmp/shot.png']);
+    expect(click.outcome).toBe('bugs_found');
   });
 });
 

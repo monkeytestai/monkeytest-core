@@ -80,7 +80,13 @@ export const ActionSchema = z.preprocess(coerceActionInput, z.object({
   rationale: z.string().optional(),
 }));
 
-export type ResolvedAction = z.infer<typeof ActionSchema>;
+export type ResolvedAction = z.infer<typeof ActionSchema> & {
+  /**
+   * When true, `value` is typed as given. Auth-negative checks use this so
+   * an invalid email is not rewritten into `qa@example.com`.
+   */
+  preserveValue?: boolean;
+};
 
 export interface PageSkeletonForLLM {
   url: string;
@@ -109,10 +115,13 @@ export interface PageSkeletonForLLM {
 export function directActionFromStep(
   action: string,
   skeleton: PageSkeletonForLLM,
+  explicitValue?: string,
 ): ResolvedAction | null {
   const fill = action.match(/\bfill(?:\s+in)?\s+the\s+["“]([^"”]+)["”]\s+field/i);
   if (fill) {
     const field = fill[1].trim();
+    const inline = action.match(/\bwith\s+["“]([^"”]+)["”]/i)?.[1];
+    const value = explicitValue ?? inline;
     const nameHint = action.match(/\bname\s*=\s*["“']([^"”']+)["”']/i)?.[1]?.trim();
     const typeHint = action.match(/input\[type=(?:"|')?([a-z0-9-]+)/i)?.[1]?.toLowerCase();
     const typed = typeHint
@@ -122,7 +131,7 @@ export function directActionFromStep(
       || findInput(skeleton.inputs, field)
       || (typed.length === 1 ? typed[0] : undefined);
     if (!input) return null;
-    return fillActionForInput(input, undefined, `Field "${field}" is on the page.`);
+    return fillActionForInput(input, value, `Field "${field}" is on the page.`, value !== undefined);
   }
 
   const quoted = action.match(/(?:click|press|tap)(?:ing)?\s+(?:the\s+)?["“]([^"”]+)["”]/i);
@@ -211,8 +220,10 @@ function fillActionForInput(
   input: PageSkeletonForLLM['inputs'][number],
   value: string | undefined,
   rationale?: string,
+  preserve = false,
 ): ResolvedAction {
-  const sample = valueForInput(input, value);
+  const sample = preserve ? (value ?? '') : valueForInput(input, value);
+  const preserved = preserve ? { preserveValue: true as const } : {};
   if (input.label) {
     return {
       tool: 'fill',
@@ -220,6 +231,7 @@ function fillActionForInput(
       target: input.label,
       value: sample,
       rationale: rationale || `Label "${input.label}" is on the page.`,
+      ...preserved,
     };
   }
   if (input.name) {
@@ -229,6 +241,7 @@ function fillActionForInput(
       target: nameSelector(input.name),
       value: sample,
       rationale: rationale || `Input name "${input.name}" is on the page.`,
+      ...preserved,
     };
   }
   if (input.id) {
@@ -238,6 +251,7 @@ function fillActionForInput(
       target: `#${input.id.replace(/\\/g, '\\\\')}`,
       value: sample,
       rationale: rationale || `Input id "${input.id}" is on the page.`,
+      ...preserved,
     };
   }
   if (input.placeholder) {
@@ -247,6 +261,7 @@ function fillActionForInput(
       target: input.placeholder,
       value: sample,
       rationale: rationale || `Placeholder "${input.placeholder}" is on the page.`,
+      ...preserved,
     };
   }
   if (input.type && input.type !== 'text') {
@@ -259,6 +274,7 @@ function fillActionForInput(
       target,
       value: sample,
       rationale: rationale || `Input type "${input.type}" is on the page.`,
+      ...preserved,
     };
   }
   return {
@@ -267,6 +283,7 @@ function fillActionForInput(
     target: input.placeholder || '',
     value: sample,
     rationale: rationale || `Placeholder "${input.placeholder}" is on the page.`,
+    ...preserved,
   };
 }
 
@@ -490,7 +507,7 @@ export async function executeAction(
           await locator.check({ timeout: timeoutMs });
           return done('passed', `Checked ${describeTarget(acted)}.`, acted);
         }
-        const safeValue = meta
+        const safeValue = meta && !action.preserveValue
           ? valueForInput(meta, action.value ?? '')
           : (action.value ?? '');
         const numeric = meta?.type === 'number' || meta?.type === 'tel' || meta?.type === 'range';

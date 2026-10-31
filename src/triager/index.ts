@@ -65,6 +65,11 @@ export interface TriageOptions {
   failOn5xx?: boolean;
   /** Pages the explorer opened. `0` makes an empty run `could_not_test`. */
   pagesVisited?: number;
+  /**
+   * Crawled pages that are not auth-gated. `0` marks a login-only run
+   * `outcome_reason: login_required`.
+   */
+  publicScreens?: number;
   /** Planner or explorer note, used when the run never started. */
   notes?: string;
 }
@@ -92,7 +97,12 @@ export async function triagePolished(
 ): Promise<RunResult> {
 
   const events = opts.events ?? noopBus();
-  const base = triage(run, { failOn5xx: opts.failOn5xx });
+  const base = triage(run, {
+    failOn5xx: opts.failOn5xx,
+    pagesVisited: opts.pagesVisited,
+    publicScreens: opts.publicScreens,
+    notes: opts.notes,
+  });
 
   if (!opts.llm || base.bugs.length === 0){
     return base;

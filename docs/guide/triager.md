@@ -66,7 +66,7 @@ It returns a strict JSON object:
 | `inconclusive` | The site was reached, but every check was skipped or failed inside the runner. |
 | `could_not_test` | Nothing was tested: 0 pages, 0 flows, or the site was unreachable. |
 
-`outcome_reason` is a short code (`automation_error`, `all_flows_skipped`, `site_unreachable`, `invalid_url`, `llm_error`, `timeout`, `blocked_by_bot_protection`, `login_required`, `not_attempted`, `nothing_tested`). `login_required` is used only when a password field or login form was seen. A flow the planner merely tagged `auth_required` is `not_attempted`.
+`outcome_reason` is a short code (`automation_error`, `all_flows_skipped`, `site_unreachable`, `invalid_url`, `llm_error`, `timeout`, `blocked_by_bot_protection`, `login_required`, `not_attempted`, `nothing_tested`). `login_required` is used when a password field or login form was seen. It is also set when `outcome` is `clean` or `bugs_found` and `public_screens` is `0`: the auth checks ran, and deeper journeys need an account. A flow the planner merely tagged `auth_required`, when public pages exist and no wall was seen, is `not_attempted`. `public_screens` counts crawled pages that are not auth-gated. `engine_version` is the package version (`ENGINE_VERSION`). `signup_attempted`, `signup_verified`, `signup_status`, and `signup_reason` are reserved and unset in 0.7.0-beta.1.
 
 `outcome_detail` is a deterministic sentence plus a next step. It agrees with `bugs.length`. An optional planner verdict is kept only when `alignVerdict` says it does not contradict that count. When the cause is the runner, the sentence says "Our test couldn't complete".
 

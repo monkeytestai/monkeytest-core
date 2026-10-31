@@ -31,7 +31,18 @@ const SURFACE_TEXT = /\b(contact|help|support|about|faq|faqs|feedback|get in tou
 export const FORM_SURFACE_PATH_SOURCE = SURFACE_PATH.source;
 export const FORM_SURFACE_TEXT_SOURCE = SURFACE_TEXT.source;
 
-const AUTH_PATH = /\/(login|log-in|signin|sign-in|signup|sign-up|register|otp|verify|forgot|reset-password|password|oauth|sso|auth)(\/|$|\?)/i;
+/**
+ * Auth wall in the path or the query. Hyphen and underscore forms count
+ * (`sign-in`, `sign_up`, `forgot-password`), and so does `?mode=signin`.
+ * The keyword has to sit on a delimiter, so `author` does not match `auth`.
+ */
+const AUTH_TOKEN = /(?:^|[/?#=&._-])(?:log[-_]?in|sign[-_]?in|sign[-_]?up|register|forgot|reset|otp|auth)(?=$|[/?#=&._-])/i;
+
+/**
+ * How many auth URLs the crawl may enqueue from links it actually saw.
+ * Separate from the form-surface reserve. The start URL is not counted.
+ */
+export const AUTH_LINK_BUDGET = 3;
 
 export function canonicalPageUrl(value: string): string {
   try {
@@ -156,10 +167,65 @@ function siteHost(url: URL): string {
 export function looksLikeAuthUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return AUTH_PATH.test(`${url.pathname}${url.search}`.toLowerCase());
+    return AUTH_TOKEN.test(`${url.pathname}${url.search}`);
   } catch {
-    return false;
+    return AUTH_TOKEN.test(value);
   }
+}
+
+/**
+ * Queue the start URL, the site root, and the start URL with its query
+ * removed. Duplicates (a root start URL) are not repeated. Nothing else
+ * is invented.
+ */
+export function seedCrawlQueue(startUrl: string): CrawlQueueItem[] {
+  const start = canonicalPageUrl(startUrl);
+  const urls = [start];
+  try {
+    const parsed = new URL(start);
+    const root = canonicalPageUrl(`${parsed.origin}/`);
+    const bare = canonicalPageUrl(`${parsed.origin}${parsed.pathname}`);
+    for (const extra of [root, bare]) {
+      if (!urls.some(existing => sameCrawlPage(existing, extra))) urls.push(extra);
+    }
+  } catch { /* keep the start URL */ }
+  return urls.map(url => ({ url, surface: isFormSurfaceLink({ url }) }));
+}
+
+/** `<loc>` entries from a sitemap or sitemap index. Entities in URLs are decoded. */
+export function urlsFromSitemap(xml: string): string[] {
+  const out: string[] = [];
+  const pattern = /<loc>\s*([^<\s]+)\s*<\/loc>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(xml))) {
+    out.push(match[1].replace(/&amp;/g, '&').trim());
+  }
+  return out;
+}
+
+/**
+ * Same-origin URLs named by `robots.txt`: `Sitemap:` lines and `Allow:`
+ * paths other than `/`. `Disallow` is not a page to visit.
+ */
+export function urlsFromRobots(text: string, scope: string): string[] {
+  let origin: string;
+  try { origin = new URL(scope).origin; }
+  catch { return []; }
+  const out: string[] = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const sitemap = line.match(/^sitemap:\s*(\S+)/i);
+    if (sitemap) {
+      out.push(sitemap[1]);
+      continue;
+    }
+    const allow = line.match(/^allow:\s*(\S+)/i);
+    if (!allow || allow[1] === '/') continue;
+    try { out.push(new URL(allow[1], origin).href); }
+    catch { /* skip a bad Allow path */ }
+  }
+  return out;
 }
 
 /** Public form / help / contact / about style link. Auth walls are not surfaces. */
@@ -220,7 +286,7 @@ export function enqueueLinks(
   visited: ReadonlySet<string>,
   links: DiscoveredLink[],
   authUrlsQueued: number,
-  authLimit = 1,
+  authLimit = AUTH_LINK_BUDGET,
 ): number {
   let authQueued = authUrlsQueued;
   for (const link of links) {
@@ -247,8 +313,7 @@ export function planCrawlOrder(input: {
   maxPages: number;
   edges: Record<string, DiscoveredLink[]>;
 }): string[] {
-  const start = canonicalPageUrl(input.startUrl);
-  const queue: CrawlQueueItem[] = [{ url: start, surface: isFormSurfaceLink({ url: start }) }];
+  const queue: CrawlQueueItem[] = seedCrawlQueue(input.startUrl);
   const visited = new Set<string>();
   const order: string[] = [];
   let surfaceVisited = 0;

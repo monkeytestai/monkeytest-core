@@ -58,6 +58,7 @@ import { verifyBugs, type VerifyReport } from './verify/index.js';
 import type {
   LLMProvider, LLMConfig, MonkeyLLMConfig, BugReport, FlowTrace, RunResult,
 } from './types.js';
+import { ENGINE_VERSION } from './version.js';
 
 /* ── Tiny ANSI helpers (no chalk dep) ─────────────────────────────────── */
 
@@ -77,7 +78,7 @@ function tty(s: string, code: keyof typeof c): string {
   return process.stdout.isTTY ? `${c[code]}${s}${c.reset}` : s;
 }
 
-const ENGINE_VERSION = 'monkeytester@0.6.1';
+const ENGINE_LABEL = `monkeytester@${ENGINE_VERSION}`;
 
 /* ── Arg parsing ──────────────────────────────────────────────────────── */
 
@@ -415,7 +416,7 @@ async function cmdExplore(url: string | undefined, opts: CommonOpts){
   const sitemapFile = resolve(opts.dir, 'sitemap.json');
   mkdirSync(opts.dir, { recursive: true });
   writeFileSync(sitemapFile, JSON.stringify(siteMap, null, 2));
-  const planFile = savePlan(plan, { dir: opts.dir, label: opts.label, engine: ENGINE_VERSION });
+  const planFile = savePlan(plan, { dir: opts.dir, label: opts.label, engine: ENGINE_LABEL });
 
   console.log(summariseSiteMap(siteMap));
   console.log(summarisePlan(plan));
@@ -458,11 +459,11 @@ async function cmdRun(url: string | undefined, opts: CommonOpts){
 
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
 
-  const planFile = savePlan(plan, { dir: opts.dir, label: opts.label, engine: ENGINE_VERSION });
+  const planFile = savePlan(plan, { dir: opts.dir, label: opts.label, engine: ENGINE_LABEL });
   const { path: runFile, id: runId } = saveRun(run, {
     dir: opts.dir,
     planRef: { path: planFile, createdAt: new Date().toISOString() },
-    engine: ENGINE_VERSION,
+    engine: ENGINE_LABEL,
   });
 
   if (opts.json){
@@ -523,7 +524,7 @@ async function replayStoredRun(stored: StoredRun, traces: FlowTrace[], opts: Com
   const { path: runFile, id: newRunId } = saveRun(run, {
     dir: opts.dir,
     planRef: stored.planRef,
-    engine: ENGINE_VERSION,
+    engine: ENGINE_LABEL,
   });
 
   if (opts.json){
@@ -583,7 +584,7 @@ async function rerunStoredPlan(stored: StoredRun | undefined, opts: CommonOpts){
   const { path: runFile, id: newRunId } = saveRun(run, {
     dir: opts.dir,
     planRef: { path: planSource, createdAt: storedPlan.createdAt },
-    engine: ENGINE_VERSION,
+    engine: ENGINE_LABEL,
   });
 
   console.log(summariseRun(run));
@@ -864,7 +865,7 @@ async function main(){
   }
 
   if (args.command === 'version'){
-    console.log(ENGINE_VERSION);
+    console.log(ENGINE_LABEL);
     return;
   }
 

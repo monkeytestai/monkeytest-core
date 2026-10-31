@@ -225,11 +225,33 @@ export type FlowKind =
   | 'accessibility'
   | 'visual';
 
+/**
+ * Engine oracle for an auth-negative step. The runner fills the values
+ * itself and does not ask the model which control to use, except for at
+ * most one fallback step when a control cannot be found.
+ */
+export type AuthCheck =
+  | 'empty_submit'
+  | 'invalid_email'
+  | 'wrong_password'
+  | 'password_toggle'
+  | 'forgot_link'
+  | 'signup_link';
+
 export interface TestStep {
   /** Human-readable instruction the runner / agent should perform. */
   action: string;
   /** What the user expects to see / what the test is asserting. */
   expectation?: string;
+  /**
+   * Exact string to type. When set, the runner does not rewrite it into a
+   * sample email or password. Omitted on model-authored steps.
+   */
+  value?: string;
+  /**
+   * Set on engine auth-negative steps (`auth-neg-*`). Omitted on other flows.
+   */
+  check?: AuthCheck;
 }
 
 export interface TestFlow {
@@ -327,9 +349,15 @@ export type RunOutcome = 'bugs_found' | 'clean' | 'inconclusive' | 'could_not_te
  * examples. `automation_error`, `not_attempted`, and `nothing_tested` are
  * additive codes for cases those examples do not name.
  *
- * `login_required` is used only when a step or page shows a real login wall
- * (a password field, a login form). A flow the planner skipped because it
- * was marked `auth_required` is `not_attempted`.
+ * `login_required` is the only login signal. It is set when:
+ *   - a step or page shows a real login wall (a password field or a login
+ *     form), or
+ *   - every crawled page was auth-gated (`public_screens === 0`) and the
+ *     run visited at least one page.
+ * On a login-only site it is set even when `outcome` is `clean` or
+ * `bugs_found`: the auth checks ran, and deeper journeys need an account.
+ * A flow the planner skipped because it was marked `auth_required`, when
+ * public pages exist and no wall was seen, stays `not_attempted`.
  */
 export type OutcomeReason =
   | 'login_required'
@@ -342,6 +370,24 @@ export type OutcomeReason =
   | 'automation_error'
   | 'not_attempted'
   | 'nothing_tested';
+
+/**
+ * Phase 3 signup result. Reserved in 0.7.0-beta.1 and left unset.
+ * `blocked` means the form asked for something the engine will not do.
+ */
+export type SignupStatus = 'verified' | 'unverified' | 'not_tested' | 'blocked';
+
+/**
+ * Why a signup was not verified. Reserved in 0.7.0-beta.1 and left unset.
+ */
+export type SignupReason =
+  | 'no_inbox'
+  | 'captcha'
+  | 'phone'
+  | 'payment'
+  | 'timeout'
+  | 'cap_reached'
+  | 'no_signup_form';
 
 export interface FlowResult {
   flowId: string;
@@ -356,7 +402,8 @@ export interface FlowResult {
    * Machine code when this flow did not produce a confirmed bug: skipped,
    * blocked, errored, or inconclusive. Omitted on a flow that passed or
    * that failed with a real site bug. `login_required` is set only when a
-   * login wall was actually observed.
+   * login wall was actually observed. The run-level field of the same name
+   * is also set on `clean` and `bugs_found` when `public_screens` is 0.
    */
   outcome_reason?: OutcomeReason;
   /** Human sentence for this flow, including what to do next. */
@@ -392,13 +439,37 @@ export interface RunResult {
    * Omitted on runs saved before 0.6.0. `triage()` always sets it.
    */
   outcome?: RunOutcome;
-  /** Short machine code. See `OutcomeReason`. Omitted for `clean` and `bugs_found`. */
+  /**
+   * Short machine code. See `OutcomeReason`. Omitted for `clean` and
+   * `bugs_found` unless the site is login-only, in which case the value is
+   * `login_required` even when those checks passed or found bugs.
+   */
   outcome_reason?: OutcomeReason;
   /**
    * One or two sentences that agree with `bugs.length`, plus a next step.
    * When the cause is the runner, the sentence says "Our test couldn't complete".
+   * On a login-only site the sentence says deeper journeys need an account.
    */
   outcome_detail?: string;
+  /**
+   * Crawled pages that are not auth-gated. `0` means every visited page was
+   * a login, signup, reset, or other auth wall. Omitted when the run did
+   * not crawl (a stored plan re-run, for example).
+   */
+  public_screens?: number;
+  /** Engine that produced this run, for example `0.7.0-beta.1`. */
+  engine_version?: string;
+  /**
+   * Phase 3. Whether an account was created. Unset in 0.7.0-beta.1.
+   * Never set from a guessed signup.
+   */
+  signup_attempted?: boolean;
+  /** Phase 3. Whether the inbox provider confirmed the address. Unset in 0.7.0-beta.1. */
+  signup_verified?: boolean;
+  /** Phase 3. Unset in 0.7.0-beta.1. */
+  signup_status?: SignupStatus;
+  /** Phase 3. Unset in 0.7.0-beta.1. */
+  signup_reason?: SignupReason;
   /** Aggregate stats for quick UI rendering. */
   stats: {
     flowsTotal: number;

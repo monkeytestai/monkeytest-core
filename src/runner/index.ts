@@ -51,6 +51,7 @@ import {
   skeletonForLLM,
   type ResolvedAction,
 } from './actions.js';
+import { captureElementRing, installPageNameHelper, locateActionTarget } from './locate.js';
 import { createFlowTimeout } from './timeout.js';
 import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
 import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
@@ -261,6 +262,7 @@ async function runFlow(
       },
     }),
   });
+  await installPageNameHelper(context);
 
   const onAbort = () => { void context.close().catch(() => {}); };
   if (signal?.aborted){
@@ -483,10 +485,18 @@ async function runFlow(
       continue;
     }
 
+    const locatedNow = await locateActionTarget(page, resolved);
+    const settled = 'reason' in locatedNow ? undefined : locatedNow;
+    if (settled) resolved = settled.action;
+    const ring = settled && (resolved.tool === 'click' || resolved.tool === 'fill' || resolved.tool === 'press' || resolved.tool === 'wait')
+      ? await captureElementRing(settled.locator, resolved.locator === 'css' ? resolved.target : undefined)
+      : undefined;
     const locator = await captureLocator(page, resolved);
     const executed = await executeAction(page, resolved, opts.stepTimeoutMs, {
       strictOracles: opts.strictOracles,
+      ...(settled ? { located: settled } : {}),
     });
+    if (executed.resolved) resolved = executed.resolved;
     let exec = opts.strictOracles
       ? await applyPassedOracles(page, evidence, stepIndex, executed)
       : executed;
@@ -512,6 +522,7 @@ async function runFlow(
       consoleErrors: evidence.consoleByStep.get(stepIndex),
       networkFailures: evidence.networkByStep.get(stepIndex),
       ...(exec.error ? { error: exec.error } : {}),
+      ...(ring ? { element: ring } : {}),
     };
     steps.push(result);
     traceSteps.push(serializeTraceStep({

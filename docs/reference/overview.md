@@ -1,6 +1,6 @@
 # Reference: Overview
 
-`@monkeytestai/monkeytester` is a single ESM package with a small, stable surface, published on npm as version **0.6.0** (`npm install @monkeytestai/monkeytester`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
+`@monkeytestai/monkeytester` is a single ESM package with a small, stable surface, published on npm as version **0.6.1** (`npm install @monkeytestai/monkeytester`). From a clone, import `./dist/index.js` from Node or `./src/index.ts` from `tsx`. The import below is the public surface.
 
 All public exports come from the package root:
 
@@ -66,7 +66,7 @@ RunResult
  ├─ outcome_detail?                   sentence that matches bugs.length, plus a next step
  ├─ flows: FlowResult[]               { flowId, status, outcome_reason?, outcome_detail?, durationMs, videoPath?, steps: StepResult[] }
  │    └─ steps: StepResult[]          { index, action, status, observation, screenshotPath?, consoleErrors[], networkFailures[] }
- ├─ bugs: BugReport[]                 { id, fingerprint, title, severity, evidence: { screenshots[], consoleErrors[], networkFailures[] } }
+ ├─ bugs: BugReport[]                 { id, fingerprint, title, severity, evidence, impact?, page_url?, step_index?, flow_id?, element? }
  └─ stats                             { flowsTotal, flowsPassed, flowsFailed, flowsBlocked, flowsInconclusive?, stepsTotal, stepsPassed, stepsFailed, bugsCritical, bugsMajor, bugsMinor }
 ```
 

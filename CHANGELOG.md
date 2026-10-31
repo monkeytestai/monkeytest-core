@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-10-31
+
+### Fixed
+
+- An unlabeled `<input type="number">` (the inputs example: a heading, the text "Number", and no `<label>`, name, or placeholder) no longer waits out `locator.fill`. Targets such as `label:Number Input` and a bare `number` fall through role, label, placeholder, name, id, `input[type=number]`, the nearest preceding text or heading, and a snapshot ref. The runner acts only when exactly one visible, enabled element matches. Anything else fails immediately with the reason, instead of a 15s timeout.
+- Number and tel fields still receive digits. If `fill` rejects that write, the runner clicks the control and types the same digits.
+- The planner drops or repairs flows whose controls are not in the crawled DOM. A checkbox or text-input flow is not produced for a page that only has a number input, and a dropped flow is not an inconclusive test. The plan notes name each dropped flow.
+
+### Added
+
+- Optional bug fields for the report page. Nothing already on `BugReport` was renamed or removed. `flow_id` is `FlowResult.flowId` (the same id as `trace.flowId`). `step_index` is the 0-based index of the failing step; `StepResult.index` stays 1-based. None of these fields are inputs to `fingerprint` or `fingerprintV2`.
+  - `impact?: string` — one line of user impact. The polish model supplies it when it returns one. Otherwise a short line is built from the failure kind and the element.
+  - `page_url?: string` — URL where the step failed.
+  - `step_index?: number` — 0-based index of the failing step in the flow.
+  - `flow_id?: string` — journey id, the existing `FlowResult.flowId`.
+  - `element?: { selector?: string; bounding_box?: { x: number; y: number; width: number; height: number } }` — ring for the screenshot. `boundingBox()` runs on the locator the runner already resolved, with a 250ms timeout. A miss omits the field and does not fail the step.
+- `SiteMapPage.inputs` records fillable controls that are not inside a `<form>`, including preceding text, heading, id, and a snapshot ref. Existing sitemap readers can ignore it.
+
 ## [0.6.0] — 2026-10-30
 
 ### Added
@@ -196,6 +214,7 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
+[0.6.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.6.1
 [0.6.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.6.0
 [0.5.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.1
 [0.5.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.0

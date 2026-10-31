@@ -33,6 +33,7 @@ import { createFlowTimeout } from './timeout.js';
 import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evidence.js';
 import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
 import { resolveFlowStatus } from './flowStatus.js';
+import { installPageNameHelper } from './locate.js';
 
 export interface ReplayOptions {
   screenshotsDir: string;
@@ -484,7 +485,7 @@ function blockedResult(recorded: TraceStep, observation: string): StepResult {
 }
 
 async function openContext(browser: Browser, opts: ReplayOptions & { screenshotsDir: string }): Promise<BrowserContext> {
-  return browser.newContext({
+  const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) AppleWebKit/537.36 '
       + '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 monkeytest.ai',
@@ -493,6 +494,8 @@ async function openContext(browser: Browser, opts: ReplayOptions & { screenshots
       recordVideo: { dir: opts.screenshotsDir, size: { width: 1280, height: 800 } },
     }),
   });
+  await installPageNameHelper(context);
+  return context;
 }
 
 async function shot(

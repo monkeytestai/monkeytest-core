@@ -33,6 +33,7 @@ import type {
   StepResult,
   BugReport,
   BugEvidence,
+  BugElement,
 } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import { failureLocation, fingerprintFailure, legacyFingerprint } from '../trace/fingerprint.js';
@@ -257,6 +258,7 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
   const severity = inferSeverity(flow, step);
 
   const trace = flow.trace ? bugTracePrefix(flow.trace, step.index) : undefined;
+  const element = bugElement(step);
 
   return {
     id,
@@ -272,8 +274,59 @@ function bugFromStep(flow: FlowResult, step: StepResult): BugReport {
     expected: step.expectation || flow.description || 'The step should complete without error.',
     evidence,
     triageNotes: explain(step),
+    impact: fallbackImpact(flow, step),
+    page_url: pageUrlFor(flow, traceStep?.urlAfter, traceStep?.urlBefore),
+    step_index: Math.max(0, step.index - 1),
+    flow_id: flow.flowId,
+    ...(element ? { element } : {}),
   };
 
+}
+
+function pageUrlFor(flow: FlowResult, urlAfter?: string, urlBefore?: string): string {
+  const candidate = urlAfter || urlBefore || flow.startUrl;
+  return candidate || flow.startUrl;
+}
+
+function bugElement(step: StepResult): BugElement | undefined {
+  if (step.element?.selector || step.element?.bounding_box) return step.element;
+  const selector = step.locator?.css || (step.locator?.strategy === 'css' ? step.locator.target : undefined);
+  if (!selector) return undefined;
+  return { selector };
+}
+
+/**
+ * One line a report can show when the model did not write an impact.
+ * The wording names the person and the control, not the Playwright error.
+ */
+export function fallbackImpact(flow: FlowResult, step: StepResult): string {
+  const target = elementPhrase(step);
+  const err = `${step.error || ''}\n${step.observation || ''}`.toLowerCase();
+  let line = `Visitors can't complete ${target}.`;
+  if (/\bhttp-5\d\d\b|http 5\d\d|internal server error/.test(err)) {
+    line = `Visitors can't finish ${target} because the server returned an error.`;
+  } else if (/pageerror|uncaught page error|page error/.test(err)) {
+    line = `Visitors see a page error when they use ${target}.`;
+  } else if (/element-disabled|control is disabled|element is disabled/.test(err)) {
+    line = `Visitors can't use ${target} because it is disabled.`;
+  } else if (/\bhttp-404\b|http 404/.test(err)) {
+    line = `Visitors can't open ${target} because the page is missing.`;
+  } else if (flow.name) {
+    line = `Visitors can't complete ${target} on ${flow.name}.`;
+  }
+  return line.length > 160 ? `${line.slice(0, 159)}…` : line;
+}
+
+function elementPhrase(step: StepResult): string {
+  const named = step.locator?.name || step.locator?.label;
+  if (named) return `"${named.slice(0, 60)}"`;
+  const target = (step.target || step.locator?.target || '').trim();
+  const role = target.match(/^[a-z]+\s*:\s*(.+)$/i);
+  if (role) return `"${role[1].slice(0, 60)}"`;
+  if (target && !target.startsWith('http') && !target.includes('[') && target.length <= 80) return `"${target}"`;
+  const action = step.action.replace(/\s+/g, ' ').trim();
+  if (!action) return 'this step';
+  return action.length > 60 ? `"${action.slice(0, 57)}…"` : `"${action}"`;
 }
 
 function inferSeverity(flow: FlowResult, step: StepResult): BugReport['severity'] {
@@ -326,20 +379,23 @@ function polishField(value: unknown, min: number, max: number): unknown {
 }
 
 export const PolishedBugSchema = z.preprocess((value) => {
-  const unwrapped = unwrapModelObject(value, ['title', 'observed', 'expected', 'triageNotes']);
+  const unwrapped = unwrapModelObject(value, ['title', 'observed', 'expected', 'triageNotes', 'impact']);
   if (!unwrapped || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) return unwrapped;
   const record = unwrapped as Record<string, unknown>;
+  const impact = polishField(record.impact ?? record.userImpact ?? record.user_impact, 8, 160);
   return {
     title: polishField(record.title ?? record.name, 8, 120),
     observed: polishField(record.observed ?? record.actual, 8, 600),
     expected: polishField(record.expected ?? record.expectation, 8, 400),
     triageNotes: polishField(record.triageNotes ?? record.notes ?? record.triage_notes, 8, 600),
+    ...(typeof impact === 'string' ? { impact } : {}),
   };
 }, z.object({
   title: z.string().min(8).max(120),
   observed: z.string().min(8).max(600),
   expected: z.string().min(8).max(400),
   triageNotes: z.string().min(8).max(600),
+  impact: z.string().min(8).max(160).optional(),
 }));
 
 const POLISH_SYSTEM = `You are a senior QA engineer rewriting an automated bug report so it reads like a human-authored ticket.
@@ -351,11 +407,12 @@ Rules:
   - "observed" is what the test actually saw, in past tense, one or two sentences. Cite the concrete error if present.
   - "expected" is what should have happened, in present tense, one sentence.
   - "triageNotes" gives a senior engineer the next step: what to look at, what likely caused it (selector/timing/network/server). 1–3 sentences.
+  - "impact" is one line a shopper would understand, such as "Shoppers can't add to cart". Omit the key if the evidence does not support a user-facing line.
   - NEVER invent details. If the evidence doesn't say it, don't claim it.
   - NEVER restate the JSON keys, the bug id, or the words "critical/major/minor".
   - Every field is a single string. Do not wrap a field in an object or array.
 
-Respond with a single JSON object: { "title", "observed", "expected", "triageNotes" }.`;
+Respond with a single JSON object: { "title", "observed", "expected", "triageNotes", "impact"? }.`;
 
 async function polishBug(bug: BugReport, llm: LLM): Promise<BugReport> {
 
@@ -405,6 +462,7 @@ Rewrite. Same JSON shape.`;
     observed: polished.observed.trim(),
     expected: polished.expected.trim(),
     triageNotes: polished.triageNotes.trim(),
+    ...(polished.impact ? { impact: polished.impact.trim() } : {}),
   };
 
 }

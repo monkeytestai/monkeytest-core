@@ -1,6 +1,6 @@
 # CLI reference
 
-The `monkeytest` binary ships in [`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.6.0**:
+The `monkeytest` binary ships in [`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.6.1**:
 
 ```bash
 npm install @monkeytestai/monkeytester

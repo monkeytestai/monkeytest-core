@@ -1,6 +1,6 @@
 # Installation
 
-[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.6.0** is published on npm. `npm install @monkeytestai/monkeytester` is the install. A clone is the path for contributors.
+[`@monkeytestai/monkeytester`](https://www.npmjs.com/package/@monkeytestai/monkeytester) **0.6.1** is published on npm. `npm install @monkeytestai/monkeytester` is the install. A clone is the path for contributors.
 
 ## Requirements
 

@@ -8,7 +8,7 @@ A map of nearby open-source and source-available tools, so you can tell whether 
 
 [monkeytester](https://github.com/monkeytestai/monkeytester) is AGPL-3.0-only. You point it at a URL. It crawls a real browser, asks an LLM for flows grounded in that crawl, runs the flows, and writes bugs with stable fingerprints. `rerun` executes the stored plan again. `diff` compares two runs. `run`, `rerun`, and `diff` use exit codes so CI can fail the job. Local models work through any OpenAI-compatible server, including Ollama (`OPENAI_COMPATIBLE_BASE_URL`, provider `openai_compatible`).
 
-Install it with `npm install @monkeytestai/monkeytester` ([npm](https://www.npmjs.com/package/@monkeytestai/monkeytester), version 0.6.0). The [quick start](/guide/quick-start) also has a clone and a no-key smoke script for contributors. The license summary for this project is on [License](/guide/license). That page is the project's own terms. The table below is only so you can see the other licenses next to it.
+Install it with `npm install @monkeytestai/monkeytester` ([npm](https://www.npmjs.com/package/@monkeytestai/monkeytester), version 0.6.1). The [quick start](/guide/quick-start) also has a clone and a no-key smoke script for contributors. The license summary for this project is on [License](/guide/license). That page is the project's own terms. The table below is only so you can see the other licenses next to it.
 
 ## Side by side
 

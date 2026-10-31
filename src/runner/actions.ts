@@ -15,6 +15,7 @@ import type {
   TraceLocatorStrategy,
 } from '../types.js';
 import { isAutomationFault } from '../automation/signatures.js';
+import { impliedType, locateActionTarget, pageFn, type LocateHit } from './locate.js';
 
 const ACTION_TOOLS = ['click', 'fill', 'goto', 'wait', 'assert_text', 'press', 'noop'] as const;
 const ACTION_LOCATORS = ['css', 'role', 'text', 'placeholder', 'label', 'testid'] as const;
@@ -87,7 +88,15 @@ export interface PageSkeletonForLLM {
   headings: string[];
   buttons: string[];
   links: { text: string; href: string }[];
-  inputs: { label?: string; placeholder?: string; name?: string; type?: string }[];
+  inputs: {
+    label?: string;
+    placeholder?: string;
+    name?: string;
+    id?: string;
+    type?: string;
+    preceding?: string;
+    heading?: string;
+  }[];
 }
 
 /**
@@ -105,7 +114,13 @@ export function directActionFromStep(
   if (fill) {
     const field = fill[1].trim();
     const nameHint = action.match(/\bname\s*=\s*["“']([^"”']+)["”']/i)?.[1]?.trim();
-    const input = (nameHint && findInput(skeleton.inputs, nameHint)) || findInput(skeleton.inputs, field);
+    const typeHint = action.match(/input\[type=(?:"|')?([a-z0-9-]+)/i)?.[1]?.toLowerCase();
+    const typed = typeHint
+      ? skeleton.inputs.filter(item => (item.type || '').toLowerCase() === typeHint)
+      : [];
+    const input = (nameHint && findInput(skeleton.inputs, nameHint))
+      || findInput(skeleton.inputs, field)
+      || (typed.length === 1 ? typed[0] : undefined);
     if (!input) return null;
     return fillActionForInput(input, undefined, `Field "${field}" is on the page.`);
   }
@@ -174,7 +189,8 @@ export function groundFillAction(
   }
 
   const input = placeholderOnly || findInput(skeleton.inputs, wanted);
-  if (!input || (!input.label && !input.name)) return action;
+  if (!input) return action;
+  if (!input.label && !input.name && !input.id && !input.placeholder && !input.type && !input.preceding) return action;
 
   const grounded = fillActionForInput(input, action.value, action.rationale);
   const withValue = action.value === grounded.value ? action : { ...action, value: grounded.value };
@@ -215,6 +231,36 @@ function fillActionForInput(
       rationale: rationale || `Input name "${input.name}" is on the page.`,
     };
   }
+  if (input.id) {
+    return {
+      tool: 'fill',
+      locator: 'css',
+      target: `#${input.id.replace(/\\/g, '\\\\')}`,
+      value: sample,
+      rationale: rationale || `Input id "${input.id}" is on the page.`,
+    };
+  }
+  if (input.placeholder) {
+    return {
+      tool: 'fill',
+      locator: 'placeholder',
+      target: input.placeholder,
+      value: sample,
+      rationale: rationale || `Placeholder "${input.placeholder}" is on the page.`,
+    };
+  }
+  if (input.type && input.type !== 'text') {
+    const target = input.type === 'textarea' || input.type === 'select'
+      ? input.type
+      : `input[type="${input.type}"]`;
+    return {
+      tool: 'fill',
+      locator: 'css',
+      target,
+      value: sample,
+      rationale: rationale || `Input type "${input.type}" is on the page.`,
+    };
+  }
   return {
     tool: 'fill',
     locator: 'placeholder',
@@ -229,8 +275,23 @@ function findInput(
   wanted: string,
   only?: 'label' | 'name' | 'placeholder',
 ): PageSkeletonForLLM['inputs'][number] | undefined {
-  const keys = only ? [only] : (['name', 'label', 'placeholder'] as const);
-  return inputs.find(input => keys.some(key => sameField(input[key], wanted)));
+  const keys = only ? [only] : (['name', 'label', 'placeholder', 'id', 'preceding'] as const);
+  const exact = inputs.find(input => keys.some(key => sameField(input[key], wanted)));
+  if (exact || only) return exact;
+  const loose = inputs.filter(input => looseField(input, wanted));
+  return loose.length === 1 ? loose[0] : undefined;
+}
+
+function looseField(input: PageSkeletonForLLM['inputs'][number], wanted: string): boolean {
+  const implied = impliedType(wanted);
+  const type = (input.type || '').toLowerCase();
+  if (implied === 'number' && (type === 'number' || type === 'range')) return true;
+  if (implied === 'text' && (type === 'text' || type === 'textarea' || type === 'email' || type === 'search' || type === 'tel' || type === 'url' || type === 'password')) return true;
+  if (implied && implied !== 'text' && implied !== 'number' && type === implied) return true;
+  const wantedTokens = wanted.toLowerCase().split(/[^a-z0-9]+/).filter(token => token.length > 1 && !['input', 'inputs', 'field', 'fields', 'box', 'the', 'control', 'element'].includes(token));
+  if (wantedTokens.length === 0) return false;
+  const hay = `${input.label || ''} ${input.name || ''} ${input.placeholder || ''} ${input.preceding || ''} ${input.heading || ''} ${input.type || ''}`.toLowerCase();
+  return wantedTokens.every(token => hay.includes(token));
 }
 
 function inputByNameSelector(
@@ -389,13 +450,16 @@ export interface ActionOutcome {
   status: StepStatus;
   observation: string;
   error?: string;
+  /** Set when a fallback locator replaced the model's target. */
+  resolved?: ResolvedAction;
+  element?: import('../types.js').BugElement;
 }
 
 export async function executeAction(
   page: Page,
   action: ResolvedAction,
   timeoutMs: number,
-  options?: { strictOracles?: boolean },
+  options?: { strictOracles?: boolean; located?: LocateHit },
 ): Promise<ActionOutcome> {
 
   try {
@@ -403,28 +467,35 @@ export async function executeAction(
     switch (action.tool){
 
       case 'click': {
-        const locator = buildLocator(page, action);
-        if (options?.strictOracles) {
-          const disabled = await failIfDisabled(locator, action);
-          if (disabled) return disabled;
-        }
-        await locator.first().click({ timeout: timeoutMs });
+        const located = await elementFor(page, action, options?.located);
+        if ('reason' in located) return miss(located.reason);
+        const locator = located.locator;
+        const acted = located.action;
+        const disabled = await disabledOutcome(locator, acted, options?.strictOracles);
+        if (disabled) return disabled;
+        await locator.click({ timeout: timeoutMs });
         await settleSPA(page).catch(() => {});
-        return { status: 'passed', observation: `Clicked ${describeTarget(action)}.` };
+        return done('passed', `Clicked ${describeTarget(acted)}.`, acted);
       }
 
       case 'fill': {
-        const locator = buildLocator(page, action);
+        const located = await elementFor(page, action, options?.located);
+        if ('reason' in located) return miss(located.reason);
+        const locator = located.locator;
+        const acted = located.action;
+        const disabled = await disabledOutcome(locator, acted, options?.strictOracles);
+        if (disabled) return disabled;
         const meta = await readFillTarget(locator);
         if (meta?.type === 'checkbox' || meta?.type === 'radio') {
-          await locator.first().check({ timeout: timeoutMs });
-          return { status: 'passed', observation: `Checked ${describeTarget(action)}.` };
+          await locator.check({ timeout: timeoutMs });
+          return done('passed', `Checked ${describeTarget(acted)}.`, acted);
         }
         const safeValue = meta
           ? valueForInput(meta, action.value ?? '')
           : (action.value ?? '');
-        await locator.first().fill(safeValue, { timeout: timeoutMs });
-        return { status: 'passed', observation: `Typed "${truncate(safeValue, 40)}" into ${describeTarget(action)}.` };
+        const numeric = meta?.type === 'number' || meta?.type === 'tel' || meta?.type === 'range';
+        await fillWithFallback(page, locator, safeValue, timeoutMs, numeric);
+        return done('passed', `Typed "${truncate(safeValue, 40)}" into ${describeTarget(acted)}.`, acted);
       }
 
       case 'goto': {
@@ -438,9 +509,10 @@ export async function executeAction(
       }
 
       case 'wait': {
-        const locator = buildLocator(page, action);
-        await locator.first().waitFor({ state: 'visible', timeout: timeoutMs });
-        return { status: 'passed', observation: `Confirmed ${describeTarget(action)} is visible.` };
+        const located = await elementFor(page, action, options?.located);
+        if ('reason' in located) return miss(located.reason);
+        await located.locator.waitFor({ state: 'visible', timeout: Math.min(timeoutMs, 1_000) });
+        return done('passed', `Confirmed ${describeTarget(located.action)} is visible.`, located.action);
       }
 
       case 'assert_text': {
@@ -459,12 +531,11 @@ export async function executeAction(
       case 'press': {
         const key = action.value || 'Enter';
         if (action.target){
-          const locator = buildLocator(page, action);
-          if (options?.strictOracles) {
-            const disabled = await failIfDisabled(locator, action);
-            if (disabled) return disabled;
-          }
-          await locator.first().press(key, { timeout: timeoutMs });
+          const located = await elementFor(page, action, options?.located);
+          if ('reason' in located) return miss(located.reason);
+          const disabled = await disabledOutcome(located.locator, located.action, options?.strictOracles);
+          if (disabled) return disabled;
+          await located.locator.press(key, { timeout: timeoutMs });
         } else {
           await page.keyboard.press(key);
         }
@@ -591,7 +662,7 @@ export async function skeletonForLLM(page: Page): Promise<PageSkeletonForLLM> {
   const url = page.url();
   const title = await page.title().catch(() => '');
 
-  const collected = await page.evaluate(() => {
+  const collected = await page.evaluate(pageFn(() => {
 
     function txt(el: Element): string {
       return (el.textContent || '').trim().replace(/\s+/g, ' ');
@@ -641,22 +712,59 @@ export async function skeletonForLLM(page: Page): Promise<PageSkeletonForLLM> {
       return '';
     }
 
+    function nearestContext(el: Element): { preceding: string; heading: string } {
+      const chunks: string[] = [];
+      let node = el.previousElementSibling;
+      let hops = 0;
+      while (node && hops < 4) {
+        const text = txt(node);
+        if (text) chunks.unshift(text.slice(0, 80));
+        node = node.previousElementSibling;
+        hops += 1;
+      }
+      let heading = '';
+      let parent: Element | null = el.parentElement;
+      let depth = 0;
+      while (parent && depth < 6 && !heading) {
+        let sib = parent.previousElementSibling;
+        let sibHops = 0;
+        while (sib && sibHops < 4 && !heading) {
+          if (/^h[1-6]$/i.test(sib.tagName)) heading = txt(sib).slice(0, 80);
+          sib = sib.previousElementSibling;
+          sibHops += 1;
+        }
+        parent = parent.parentElement;
+        depth += 1;
+      }
+      return {
+        preceding: chunks.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80),
+        heading,
+      };
+    }
+
     const inputs = Array.from(document.querySelectorAll('input, textarea, select'))
       .slice(0, 25)
       .map(el => {
         const i = el as HTMLInputElement;
         const label = fieldLabel(i);
+        const ctx = nearestContext(i);
+        const type = i.type || i.tagName.toLowerCase();
+        if (type === 'hidden') return undefined;
         return {
           label: label || undefined,
           placeholder: i.placeholder || undefined,
           name: i.name || undefined,
-          type: i.type || i.tagName.toLowerCase(),
+          id: i.id || undefined,
+          type,
+          preceding: ctx.preceding || undefined,
+          heading: ctx.heading || undefined,
         };
-      });
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
     return { headings, buttons, links, inputs };
 
-  });
+  }));
 
   return {
     url,
@@ -687,6 +795,31 @@ export function describeTarget(action: ResolvedAction): string {
  * A missing element throws immediately (`isDisabled` defaults to no wait) and
  * falls through to the real action.
  */
+/**
+ * A disabled control is not clicked or filled. Strict oracles record it as
+ * a product bug. Otherwise the step stops immediately instead of waiting
+ * for the control to become enabled.
+ */
+async function disabledOutcome(
+  locator: Locator,
+  action: ResolvedAction,
+  strict: boolean | undefined,
+): Promise<ActionOutcome | undefined> {
+  let disabled = false;
+  try {
+    disabled = await locator.isDisabled();
+  } catch {
+    return undefined;
+  }
+  if (!disabled) return undefined;
+  if (strict) return failIfDisabled(locator, action);
+  return {
+    status: 'skipped',
+    observation: `The only match for ${describeTarget(action)} is disabled, so it was not used.`,
+    error: 'locator-unresolved',
+  };
+}
+
 async function failIfDisabled(locator: Locator, action: ResolvedAction): Promise<ActionOutcome | undefined> {
   try {
     if (await locator.first().isDisabled()) {
@@ -700,6 +833,63 @@ async function failIfDisabled(locator: Locator, action: ResolvedAction): Promise
     return undefined;
   }
   return undefined;
+}
+
+async function elementFor(
+  page: Page,
+  action: ResolvedAction,
+  located: LocateHit | undefined,
+): Promise<LocateHit | { reason: string }> {
+  if (located) return located;
+  return locateActionTarget(page, action);
+}
+
+function miss(reason: string): ActionOutcome {
+  return { status: 'skipped', observation: reason, error: 'locator-unresolved' };
+}
+
+function done(status: StepStatus, observation: string, acted: ResolvedAction): ActionOutcome {
+  return { status, observation, ...(acted ? { resolved: acted } : {}) };
+}
+
+/**
+ * `input[type=number]` accepts digits via `fill`. When the browser rejects
+ * that write, click the control and type the same digits.
+ */
+async function fillWithFallback(
+  page: Page,
+  locator: Locator,
+  value: string,
+  timeoutMs: number,
+  numeric: boolean,
+): Promise<void> {
+  const fillTimeout = numeric ? Math.min(timeoutMs, 2_000) : timeoutMs;
+  try {
+    await locator.fill(value, { timeout: fillTimeout });
+    if (!numeric) return;
+    const actual = await locator.inputValue().catch(() => '');
+    if (actual === value) return;
+    throw new Error(`fill did not set number value (got "${actual}")`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!numeric || !isFillRejection(msg)) throw err;
+  }
+  await locator.click({ timeout: Math.min(timeoutMs, 2_000) });
+  await locator.press('Control+A').catch(() => {});
+  try {
+    await locator.pressSequentially(value, { timeout: Math.min(timeoutMs, 3_000) });
+  } catch {
+    await page.keyboard.insertText(value);
+  }
+}
+
+function isFillRejection(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return lower.includes('cannot type text')
+    || lower.includes('not an <input')
+    || lower.includes('not editable')
+    || lower.includes('fill did not set')
+    || (lower.includes('timeout') && lower.includes('locator.fill'));
 }
 
 function isSoftAutomationMiss(msg: string): boolean {

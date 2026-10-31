@@ -37,7 +37,7 @@ Runs written before traces existed still load. Their bugs have no `trace`, and `
 | Role + name | Accessible role and name of the target. CSS selectors are not part of the key. |
 | Error signal | A coarse class such as `target-not-found` or `not-editable`. Numbers, ids, and timestamps are stripped. |
 
-The parts are saved on `bug.fingerprintParts` (`version: 2`). The tool name and the raw error text are not inputs, so two runs that picked different tools still share one `fingerprintV2`.
+The parts are saved on `bug.fingerprintParts` (`version: 2`). The tool name, the raw error text, and the 0.6.1 report fields (`impact`, `page_url`, `step_index`, `flow_id`, `element`) are not inputs, so two runs that picked different tools still share one `fingerprintV2`. `flow_id` is the existing `FlowResult.flowId`.
 
 `monkeytest diff` and `monkeytest verify` use `fingerprintV2` when both bugs have it, and `fingerprint` otherwise. Switch a stored comparison over to `fingerprintV2` when you are ready. A later major version can make that the default. Until then, `fingerprint` stays the legacy hash.
 

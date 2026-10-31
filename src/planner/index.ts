@@ -13,11 +13,12 @@
 
 import { z } from 'zod';
 import type { LLM } from '../llm/index.js';
-import type { SiteMap, TestPlan, TestFlow } from '../types.js';
+import type { SiteMap, SiteMapFormInput, SiteMapPage, TestPlan, TestFlow } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
 import { ensurePublicFormFlow } from './forms.js';
 import { ensureFaultSurfaceFlows } from './faults.js';
 import { applyFormsSearchCtaFocus } from './focus.js';
+import { reconcileModelFlows } from './inventory.js';
 import { salvageModelFlows } from './salvage.js';
 import type { PlanFocus } from '../depth.js';
 
@@ -142,6 +143,8 @@ ${siteMap.pages.map(p => `
       ${p.forms?.length
         ? p.forms.map(f => `${(f.method || 'get').toUpperCase()} ${f.action || '(no action)'} fields=[${f.fields.join(', ') || 'none'}] submit="${f.submitLabel || ''}"`).join(' | ')
         : '(none)'}
+    inputs:
+      ${formatInputs(p)}
     controls:
       ${p.controls?.length
         ? p.controls.slice(0, 12).map(c => `${c.kind}${c.disabled ? ' disabled' : ''} "${c.label}"${c.href ? ` -> ${c.href}` : ''}`).join(', ')
@@ -202,6 +205,9 @@ Reply with JSON:
     if (publicOnly.length > 0) flows = publicOnly;
   }
 
+  const reconciled = reconcileModelFlows(flows, siteMap);
+  flows = reconciled.flows;
+
   const grounded = groundFlows(siteMap, flows, maxFlows, opts.focus);
   flows = grounded.flows;
   if (discardedModel && modelProblem) {
@@ -217,6 +223,7 @@ Reply with JSON:
   const notes = [
     modelNotes,
     modelProblem ? `Planner model response could not be used in full. ${truncate(modelProblem, 400)}` : '',
+    reconciled.note,
     grounded.note,
   ].filter(Boolean).join(' ') || undefined;
 
@@ -224,10 +231,14 @@ Reply with JSON:
   const usage = llm.lastUsage;
   events.emit({
     phase: 'planner', type: 'plan.complete',
-    message: `Plan ready: ${flows.length} flow${flows.length === 1 ? '' : 's'} to execute.`,
+    message: [
+      `Plan ready: ${flows.length} flow${flows.length === 1 ? '' : 's'} to execute.`,
+      reconciled.note || '',
+    ].filter(Boolean).join(' '),
     data: {
       flows: flows.length,
       flowNames: flows.map(f => f.name),
+      ...(reconciled.dropped.length ? { droppedFlows: reconciled.dropped } : {}),
       ...(usage ? { usage } : {}),
     },
   });
@@ -291,6 +302,26 @@ function dedupeFlowIds(flows: TestFlow[]): TestFlow[] {
     seen.add(id);
     return id === flow.id ? flow : { ...flow, id };
   });
+}
+
+function formatInputs(page: Pick<SiteMapPage, 'inputs' | 'forms'>): string {
+  const list: SiteMapFormInput[] = page.inputs?.length
+    ? page.inputs
+    : (page.forms ?? []).flatMap(form => form.inputs ?? []);
+  if (list.length === 0) {
+    const tokens = (page.forms ?? []).flatMap(form => form.fields);
+    return tokens.length ? tokens.join(', ') : '(none)';
+  }
+  return list.map(input => [
+    input.type,
+    input.label && `label="${input.label}"`,
+    input.name && `name="${input.name}"`,
+    input.placeholder && `placeholder="${input.placeholder}"`,
+    input.id && `id="${input.id}"`,
+    input.preceding && `preceding="${input.preceding}"`,
+    input.heading && `heading="${input.heading}"`,
+    input.ref && `ref=${input.ref}`,
+  ].filter(Boolean).join(' ')).join(' | ');
 }
 
 function truncate(value: string, max: number): string {

@@ -77,7 +77,7 @@ function tty(s: string, code: keyof typeof c): string {
   return process.stdout.isTTY ? `${c[code]}${s}${c.reset}` : s;
 }
 
-const ENGINE_VERSION = 'monkeytester@0.6.0';
+const ENGINE_VERSION = 'monkeytester@0.6.1';
 
 /* ── Arg parsing ──────────────────────────────────────────────────────── */
 

@@ -45,8 +45,9 @@ import {
   logModelDetail,
   unwrapModelObject,
 } from '../llm/coerce.js';
-import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapPage, SiteMapInteractive } from '../types.js';
+import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapFormInput, SiteMapPage, SiteMapInteractive } from '../types.js';
 import { type EventBus, noopBus } from '../events.js';
+import { installPageNameHelper } from '../runner/locate.js';
 import {
   canonicalPageUrl,
   crawledPageUrl,
@@ -125,6 +126,7 @@ export async function explore(
         + '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 monkeytest.ai',
       viewport: { width: 1280, height: 800 },
     });
+    await installPageNameHelper(context);
 
     while (queue.length > 0 && pages.length < maxPages){
 
@@ -213,6 +215,7 @@ export async function explore(
           interactive: withScrapedForm(summary.interactive, forms),
           outboundLinks: outbound.map(link => link.url),
           ...(forms.length ? { forms } : {}),
+          ...(skeleton.inputs.length ? { inputs: skeleton.inputs } : {}),
           ...(controls.length ? { controls } : {}),
           authGated: summary.authGated,
           ...(screenshotPath ? { screenshotPath } : {}),
@@ -304,6 +307,7 @@ interface PageSkeleton {
   visibleText: string;     // first ~1500 chars of body text
   links: DiscoveredLink[];
   forms: SiteMapForm[];
+  inputs: SiteMapFormInput[];
   buttons: string[];
   controls: SiteMapControl[];
 }
@@ -384,24 +388,105 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
       return '';
     }
 
+    function nearestContext(el: Element): { preceding: string; heading: string } {
+      const chunks: string[] = [];
+      let node = el.previousElementSibling;
+      let hops = 0;
+      while (node && hops < 4) {
+        const text = txt(node);
+        if (text) chunks.unshift(text.slice(0, 80));
+        node = node.previousElementSibling;
+        hops += 1;
+      }
+      let heading = '';
+      let parent: Element | null = el.parentElement;
+      let depth = 0;
+      while (parent && depth < 6 && !heading) {
+        let sib = parent.previousElementSibling;
+        let sibHops = 0;
+        while (sib && sibHops < 4 && !heading) {
+          if (/^h[1-6]$/i.test(sib.tagName)) heading = txt(sib).slice(0, 80);
+          sib = sib.previousElementSibling;
+          sibHops += 1;
+        }
+        parent = parent.parentElement;
+        depth += 1;
+      }
+      return {
+        preceding: chunks.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80),
+        heading,
+      };
+    }
+
+    const described = new Map<Element, {
+      token: string;
+      name?: string;
+      label?: string;
+      placeholder?: string;
+      id?: string;
+      type?: string;
+      preceding?: string;
+      heading?: string;
+      ref: string;
+    }>();
+    let refCount = 0;
+    function describeControl(el: Element) {
+      const existing = described.get(el);
+      if (existing) return existing;
+      const control = el as HTMLInputElement;
+      const tag = el.tagName.toLowerCase();
+      const type = (tag === 'input' ? (control.type || 'text') : tag).toLowerCase();
+      const name = control.name || '';
+      const placeholder = control.placeholder || '';
+      const label = fieldLabel(el);
+      const id = control.id || '';
+      const ctx = nearestContext(el);
+      const token = name || placeholder || type;
+      refCount += 1;
+      const record = {
+        token,
+        ...(name ? { name } : {}),
+        ...(label ? { label } : {}),
+        ...(placeholder ? { placeholder } : {}),
+        ...(id ? { id } : {}),
+        ...(type ? { type } : {}),
+        ...(ctx.preceding ? { preceding: ctx.preceding } : {}),
+        ...(ctx.heading ? { heading: ctx.heading } : {}),
+        ref: `e${refCount}`,
+      };
+      described.set(el, record);
+      return record;
+    }
+
+    function isSkippableControl(el: Element): boolean {
+      const tag = el.tagName.toLowerCase();
+      const type = (tag === 'input' ? ((el as HTMLInputElement).type || 'text') : tag).toLowerCase();
+      return type === 'hidden' || type === 'submit' || type === 'button' || type === 'image' || type === 'reset';
+    }
+
+    const pageInputs = Array.from(document.querySelectorAll('input, textarea, select')).flatMap(el => {
+      if (isSkippableControl(el)) return [];
+      const describedControl = describeControl(el);
+      if (!describedControl.token) return [];
+      return [{
+        ...(describedControl.name ? { name: describedControl.name } : {}),
+        ...(describedControl.label ? { label: describedControl.label } : {}),
+        ...(describedControl.placeholder ? { placeholder: describedControl.placeholder } : {}),
+        ...(describedControl.id ? { id: describedControl.id } : {}),
+        ...(describedControl.type ? { type: describedControl.type } : {}),
+        ...(describedControl.preceding ? { preceding: describedControl.preceding } : {}),
+        ...(describedControl.heading ? { heading: describedControl.heading } : {}),
+        ref: describedControl.ref,
+      }];
+    }).slice(0, 25);
+
     const forms = Array.from(document.querySelectorAll('form')).slice(0, 10).map(f => {
       const form = f as HTMLFormElement;
-      const controls = Array.from(form.querySelectorAll('input, textarea, select')).flatMap(i => {
-        const el = i as HTMLInputElement;
-        const type = (el.type || el.tagName || '').toLowerCase();
-        if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image' || type === 'reset') return [];
-        const name = el.name || '';
-        const placeholder = el.placeholder || '';
-        const label = fieldLabel(el);
-        const token = name || placeholder || type;
-        if (!token) return [];
-        return [{
-          token,
-          ...(name ? { name } : {}),
-          ...(label ? { label } : {}),
-          ...(placeholder ? { placeholder } : {}),
-          ...(type ? { type } : {}),
-        }];
+      const controls = Array.from(form.querySelectorAll('input, textarea, select')).flatMap(el => {
+        if (isSkippableControl(el)) return [];
+        const describedControl = describeControl(el);
+        if (!describedControl.token) return [];
+        return [describedControl];
       });
       const submit = form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
       const submitLabel = submit ? (txt(submit) || (submit as HTMLInputElement).value || '') : '';
@@ -414,7 +499,11 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
             ...(control.name ? { name: control.name } : {}),
             ...(control.label ? { label: control.label } : {}),
             ...(control.placeholder ? { placeholder: control.placeholder } : {}),
+            ...(control.id ? { id: control.id } : {}),
             ...(control.type ? { type: control.type } : {}),
+            ...(control.preceding ? { preceding: control.preceding } : {}),
+            ...(control.heading ? { heading: control.heading } : {}),
+            ref: control.ref,
           })),
         } : {}),
         ...(submitLabel ? { submitLabel: submitLabel.slice(0, 80) } : {}),
@@ -440,7 +529,7 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
 
     const visibleText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2200);
 
-    return { headings, links, forms, buttons: buttons.map(control => control.label), controls: [...buttons, ...linkControls], visibleText };
+    return { headings, links, forms, inputs: pageInputs, buttons: buttons.map(control => control.label), controls: [...buttons, ...linkControls], visibleText };
 
   }, {
     pathSource: FORM_SURFACE_PATH_SOURCE,
@@ -454,6 +543,7 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
     visibleText: collected.visibleText,
     links: collected.links,
     forms: collected.forms,
+    inputs: collected.inputs,
     buttons: collected.buttons,
     controls: collected.controls,
   };
@@ -558,6 +648,11 @@ ${skeleton.buttons.map(b => `  - ${b}`).join('\n') || '  (none)'}
 
 Forms:
 ${skeleton.forms.map((f, i) => `  ${i + 1}. method=${f.method || 'get'} action=${f.action || '(none)'} submit=${f.submitLabel || '(none)'} fields=[${f.fields.join(', ')}]`).join('\n') || '  (none)'}
+
+Inputs (only these exist — do not invent a checkbox, text box, or other control):
+${skeleton.inputs.length
+    ? skeleton.inputs.map(input => `  - ${[input.type, input.label && `label="${input.label}"`, input.name && `name="${input.name}"`, input.preceding && `preceding="${input.preceding}"`, input.heading && `heading="${input.heading}"`, input.ref && `ref=${input.ref}`].filter(Boolean).join(' ')}`).join('\n')
+    : '  (none)'}
 
 Visible text (excerpt):
 ${skeleton.visibleText || '(empty)'}

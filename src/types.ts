@@ -99,8 +99,19 @@ export interface SiteMapFormInput {
   /** Associated label, `aria-label`, or wrapping `<label>` text. */
   label?: string;
   placeholder?: string;
+  /** `id` attribute, when the control has one. */
+  id?: string;
   /** Input type, or `textarea` / `select` when the control has no type. */
   type?: string;
+  /** Nearest preceding text, when the control has no label. */
+  preceding?: string;
+  /** Nearest heading before the control. */
+  heading?: string;
+  /**
+   * Snapshot ref (`e1`, `e2`, …) in DOM order. The runner can target it
+   * when role, label, and type selectors are not enough.
+   */
+  ref?: string;
 }
 
 /**
@@ -161,6 +172,11 @@ export interface SiteMapPage {
    * exercise fault surfaces without asking the model to invent controls.
    */
   controls?: SiteMapControl[];
+  /**
+   * Fillable controls scraped from the DOM, including inputs that are not
+   * inside a `<form>`. Omitted when the page has none. Additive.
+   */
+  inputs?: SiteMapFormInput[];
   /** Whether the page seems to require authentication. */
   authGated: boolean;
   /** Absolute path to the screenshot taken of this page, if requested. */
@@ -285,6 +301,11 @@ export interface StepResult {
   networkFailures?: NetworkFailureEvidence[];
   /** Raw error message when status === 'failed'. */
   error?: string;
+  /**
+   * Failing or acted-on element, when a box or selector was cheap to read.
+   * Omitted when capture was skipped. Same shape as `BugReport.element`.
+   */
+  element?: BugElement;
 }
 
 export type FlowStatus = 'passed' | 'failed' | 'blocked' | 'error' | 'inconclusive';
@@ -513,6 +534,24 @@ export interface BugEvidence {
   domSnapshot?: string;
 }
 
+/** Viewport box for drawing a ring on the step screenshot. CSS pixels. */
+export interface BugElementBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The element a bug is about. Both fields are optional: a selector without
+ * a box, or a box without a selector, is still useful. Omitted entirely
+ * when neither could be captured without delaying the step.
+ */
+export interface BugElement {
+  selector?: string;
+  bounding_box?: BugElementBox;
+}
+
 export interface BugReport {
   id: string;
   /**
@@ -544,6 +583,34 @@ export interface BugReport {
   evidence: BugEvidence;
   /** 1–3 sentence explanation from the triager LLM. */
   triageNotes: string;
+  /**
+   * One-line user impact, for example "Shoppers can't add to cart".
+   * The triager model supplies it when polish returns one. Otherwise the
+   * engine writes a short line from the failure kind and the element.
+   * Omitted on bugs saved before 0.6.1.
+   */
+  impact?: string;
+  /**
+   * URL of the page where the step failed. Omitted on bugs saved before 0.6.1.
+   */
+  page_url?: string;
+  /**
+   * 0-based index of the failing step in its flow.
+   * `StepResult.index` and `TraceStep.index` stay 1-based for planned steps
+   * (`0` on a trace is still the opening navigation). Omitted before 0.6.1.
+   */
+  step_index?: number;
+  /**
+   * Journey id. This is `FlowResult.flowId` and `BugTrace.flowId`, not a
+   * new identifier. `affectedFlow` remains the human name. Omitted before 0.6.1.
+   */
+  flow_id?: string;
+  /**
+   * Element to ring on the screenshot. Captured with `boundingBox()` on the
+   * locator the runner already resolved, with a short timeout. A miss omits
+   * the field and does not fail the step. Omitted before 0.6.1.
+   */
+  element?: BugElement;
 }
 
 /* ── Live event stream (yielded by Monkey.run) ────────────────────────── */

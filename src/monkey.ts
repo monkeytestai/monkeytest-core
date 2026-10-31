@@ -17,7 +17,7 @@ import { runPlan, type RunnerOptions } from './runner/index.js';
 import { replayTraces, type ReplayOptions } from './runner/replay.js';
 import { triage, triagePolished } from './triager/index.js';
 import { applyPlannerVerdict } from './planner/verdict.js';
-import { attachRunOutcome } from './outcome.js';
+import { attachRunOutcome, countPublicScreens } from './outcome.js';
 import { verifyBugs, type VerifyOptions, type VerifyReport } from './verify/index.js';
 import { EventBus, noopBus } from './events.js';
 import type {
@@ -174,7 +174,7 @@ export class Monkey {
         return {
           siteMap,
           plan: fallback,
-          run: finishEmpty(startUrl, siteMap.pages.length, fallback.notes),
+          run: finishEmpty(startUrl, siteMap.pages.length, fallback.notes, countPublicScreens(siteMap.pages)),
         };
       }
       testPlan = fallback;
@@ -188,7 +188,7 @@ export class Monkey {
       return {
         siteMap,
         plan: testPlan,
-        run: finishEmpty(startUrl, siteMap.pages.length, testPlan.notes),
+        run: finishEmpty(startUrl, siteMap.pages.length, testPlan.notes, countPublicScreens(siteMap.pages)),
       };
     }
 
@@ -223,13 +223,14 @@ export class Monkey {
           ...testPlan,
           notes: [testPlan.notes, `Runner failed before executing flows: ${msg}`].filter(Boolean).join('\n'),
         },
-        run: finishEmpty(startUrl, siteMap.pages.length, `Runner failed before executing flows: ${msg}`),
+        run: finishEmpty(startUrl, siteMap.pages.length, `Runner failed before executing flows: ${msg}`, countPublicScreens(siteMap.pages)),
       };
     }
 
     const triageOpts = {
       failOn5xx: opts.run.failOn5xx ?? this.failOn5xx,
       pagesVisited: siteMap.pages.length,
+      publicScreens: countPublicScreens(siteMap.pages),
       notes: testPlan.notes,
     };
     let run: RunResult;
@@ -457,8 +458,8 @@ function emptyRun(startUrl: string): RunResult {
   };
 }
 
-function finishEmpty(startUrl: string, pagesVisited: number | undefined, notes?: string): RunResult {
-  return attachRunOutcome(emptyRun(startUrl), { pagesVisited, notes });
+function finishEmpty(startUrl: string, pagesVisited: number | undefined, notes?: string, publicScreens?: number): RunResult {
+  return attachRunOutcome(emptyRun(startUrl), { pagesVisited, notes, publicScreens });
 }
 
 function truncate(s: string, n: number): string {

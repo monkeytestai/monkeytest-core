@@ -57,6 +57,9 @@ import { applyPassedOracles, attachStepEvidence, flushStepEvents } from './evide
 import { collectOrigins, outcomeWithSameOrigin5xx, promoteRecordedSteps } from './http5xx.js';
 import { serializeTrace, serializeTraceStep } from '../trace/serialize.js';
 import { resolveFlowStatus } from './flowStatus.js';
+import { ENGINE_VERSION } from '../version.js';
+import { isAuthNegativeFlowId } from '../planner/authNegative.js';
+import { runAuthCheck } from './authNegative.js';
 
 export interface RunnerOptions {
   /**
@@ -218,6 +221,7 @@ export async function runPlan(
     flows,
     bugs: [],                                   // populated by triager phase
     stats: aggregateStats(flows),
+    engine_version: ENGINE_VERSION,
   };
 
 }
@@ -281,6 +285,8 @@ async function runFlow(
   const traceSteps: TraceStep[] = [];
   let flowFailed = false;
   let firstFailureReason: string | undefined;
+  const authNeg = isAuthNegativeFlowId(flow.id);
+  const llmFallbacks = { used: 0 };
 
   const finish = (videoPath?: string) => {
     if (opts.failOn5xx) {
@@ -435,11 +441,86 @@ async function runFlow(
     const stepStart = Date.now();
     const startedAt = new Date().toISOString();
     const urlBefore = page.url();
+
+    if (step.check) {
+      const outcome = await runAuthCheck(page, flow, step, evidence, stepIndex, {
+        timeoutMs: opts.stepTimeoutMs,
+        llm,
+        fallbacks: llmFallbacks,
+      });
+      const screenshotPath = await safeShot(page, opts.screenshotsDir, flow.id, stepIndex, outcome.status);
+      const result: StepResult = {
+        index: stepIndex,
+        action: step.action,
+        expectation: step.expectation,
+        status: outcome.status,
+        observation: outcome.observation,
+        tool: outcome.tool,
+        target: outcome.target,
+        resolution: 'recorded',
+        durationMs: Date.now() - stepStart,
+        screenshotPath,
+        consoleErrors: evidence.consoleByStep.get(stepIndex),
+        networkFailures: evidence.networkByStep.get(stepIndex),
+        ...(outcome.error ? { error: outcome.error } : {}),
+      };
+      steps.push(result);
+      traceSteps.push(serializeTraceStep({
+        index: stepIndex,
+        action: step.action,
+        expectation: step.expectation,
+        tool: outcome.tool,
+        value: outcome.value,
+        urlBefore,
+        urlAfter: safePageUrl(page),
+        startedAt,
+        durationMs: result.durationMs,
+        status: outcome.status,
+        observation: outcome.observation,
+        error: outcome.error,
+        screenshotPath,
+        consoleErrors: result.consoleErrors,
+        networkFailures: result.networkFailures,
+        resolution: 'recorded',
+      }));
+      opts.onEvent?.({ type: 'step.complete', flowId: flow.id, index: stepIndex, result });
+      events.emit({
+        phase: 'runner', type: 'run.step_complete',
+        message: `Step ${stepIndex} ${outcome.status}: ${truncate(outcome.observation, 100)}`,
+        data: {
+          flowId: flow.id, flowIndex, flowsTotal,
+          stepIndex, stepsTotal: flow.steps.length,
+          status: outcome.status,
+          tool: outcome.tool,
+          observation: outcome.observation,
+          screenshot: screenshotPath ? basename(screenshotPath) : null,
+          currentUrl: page.url(),
+          durationMs: result.durationMs,
+        },
+      });
+      if (outcome.status === 'failed') {
+        flowFailed = true;
+        firstFailureReason = firstFailureReason || outcome.error || outcome.observation;
+      }
+      continue;
+    }
+
     let resolved: ResolvedAction;
     try {
       const skeleton = await skeletonForLLM(page);
-      const drafted = directActionFromStep(step.action, skeleton) ?? await resolveAction(llm, flow, step, skeleton);
+      const direct = directActionFromStep(step.action, skeleton, step.value);
+      let drafted = direct;
+      if (!drafted) {
+        if (authNeg && llmFallbacks.used >= 1) {
+          throw new Error('auth-negative LLM fallback already used');
+        }
+        drafted = await resolveAction(llm, flow, step, skeleton);
+        if (authNeg) llmFallbacks.used += 1;
+      }
       resolved = groundFillAction(drafted, skeleton);
+      if (step.value && resolved.tool === 'fill') {
+        resolved = { ...resolved, value: step.value, preserveValue: true };
+      }
     } catch (err) {
       // LLM couldn't propose an action. That's a planner/runner integration
       // problem, not a product bug — record it but don't poison the flow.
@@ -724,6 +805,7 @@ function emptyRun(plan: TestPlan, startedAt: string): RunResult {
       stepsTotal: 0, stepsPassed: 0, stepsFailed: 0,
       bugsCritical: 0, bugsMajor: 0, bugsMinor: 0,
     },
+    engine_version: ENGINE_VERSION,
   };
 }
 

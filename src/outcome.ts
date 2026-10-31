@@ -26,12 +26,22 @@ import type {
   StepResult,
   TraceStep,
 } from './types.js';
+import { ENGINE_VERSION } from './version.js';
 
 export interface OutcomeContext {
   /** Pages the explorer actually opened. `0` means the site was not visited. */
   pagesVisited?: number;
+  /**
+   * Crawled pages that are not auth-gated. `0` with `pagesVisited > 0` is a
+   * login-only site. Omit when the crawl is unknown.
+   */
+  publicScreens?: number;
   /** Planner or explorer note when the run stopped early. */
   notes?: string;
+}
+
+export function countPublicScreens(pages: Array<{ authGated?: boolean }>): number {
+  return pages.reduce((count, page) => count + (page.authGated ? 0 : 1), 0);
 }
 
 const UNREACHABLE = /net::err_(name_not_resolved|connection_refused|connection_reset|connection_timed_out|internet_disconnected|address_unreachable|network_changed|connection_closed|socket_not_connected|timed_out)|err_connection|dns_probe|enotfound|econnrefused|chrome-error:\/\/chromewebdata/i;
@@ -303,49 +313,89 @@ export interface DerivedOutcome {
   outcome_detail: string;
 }
 
+function loginOnly(ctx: OutcomeContext): boolean {
+  return ctx.publicScreens === 0 && (ctx.pagesVisited ?? 0) > 0;
+}
+
+function loginOnlyDetail(outcome: RunOutcome, bugCount: number): string {
+  if (outcome === 'bugs_found') {
+    const noun = bugCount === 1 ? 'bug' : 'bugs';
+    return `Found ${bugCount} confirmed ${noun} on the pages we could open without an account. Deeper journeys need an account.`;
+  }
+  if (outcome === 'clean') {
+    return 'The sign-in checks we could run finished with no confirmed bugs. Deeper journeys need an account.';
+  }
+  return 'Our test couldn\'t complete a journey past the login wall. Deeper journeys need an account. Test the public pages, or run the CLI with credentials.';
+}
+
+const HARD_STOP: ReadonlySet<OutcomeReason> = new Set([
+  'site_unreachable',
+  'invalid_url',
+  'blocked_by_bot_protection',
+]);
+
+function applyLoginOnly(derived: DerivedOutcome, ctx: OutcomeContext, bugCount: number): DerivedOutcome {
+  if (!loginOnly(ctx)) return derived;
+  if (derived.outcome_reason && HARD_STOP.has(derived.outcome_reason)) return derived;
+  return {
+    outcome: derived.outcome,
+    outcome_reason: 'login_required',
+    outcome_detail: loginOnlyDetail(derived.outcome, bugCount),
+  };
+}
+
 /** Bug count is the filtered list on `run.bugs`. */
 export function deriveRunOutcome(run: RunResult, ctx: OutcomeContext = {}): DerivedOutcome {
   const bugCount = run.bugs.length;
   if (bugCount > 0) {
-    return { outcome: 'bugs_found', outcome_detail: runDetail('bugs_found', undefined, bugCount) };
+    return applyLoginOnly(
+      { outcome: 'bugs_found', outcome_detail: runDetail('bugs_found', undefined, bugCount) },
+      ctx,
+      bugCount,
+    );
   }
 
   const reasons = run.flows
     .map(flow => flow.outcome_reason)
     .filter((reason): reason is OutcomeReason => Boolean(reason));
   const anyPassed = run.flows.some(flow => flow.status === 'passed');
-  const hardStop = new Set<OutcomeReason>(['site_unreachable', 'invalid_url', 'blocked_by_bot_protection']);
   const nothingRan = run.flows.length === 0 || ctx.pagesVisited === 0;
   const onlyUnreachable = run.flows.length > 0
     && !anyPassed
     && reasons.length > 0
-    && reasons.every(reason => hardStop.has(reason));
+    && reasons.every(reason => HARD_STOP.has(reason));
 
   if (nothingRan || onlyUnreachable) {
     const outcome_reason = pickCouldNotTest(reasons, ctx);
-    return {
+    return applyLoginOnly({
       outcome: 'could_not_test',
       outcome_reason,
       outcome_detail: runDetail('could_not_test', outcome_reason, 0),
-    };
+    }, ctx, 0);
   }
 
   if (!anyPassed) {
     const outcome_reason = pickInconclusive(reasons);
-    return {
+    return applyLoginOnly({
       outcome: 'inconclusive',
       outcome_reason,
       outcome_detail: runDetail('inconclusive', outcome_reason, 0),
-    };
+    }, ctx, 0);
   }
 
-  return { outcome: 'clean', outcome_detail: runDetail('clean', undefined, 0) };
+  return applyLoginOnly(
+    { outcome: 'clean', outcome_detail: runDetail('clean', undefined, 0) },
+    ctx,
+    0,
+  );
 }
 
 export function attachRunOutcome(run: RunResult, ctx: OutcomeContext = {}): RunResult {
   const derived = deriveRunOutcome(run, ctx);
   return {
     ...run,
+    engine_version: ENGINE_VERSION,
+    ...(typeof ctx.publicScreens === 'number' ? { public_screens: ctx.publicScreens } : {}),
     outcome: derived.outcome,
     outcome_reason: derived.outcome_reason,
     outcome_detail: derived.outcome_detail,
@@ -357,6 +407,8 @@ export interface VerdictFacts {
   outcome: RunOutcome;
   /** Deterministic sentence. Used when `draft` contradicts the facts. */
   outcome_detail: string;
+  /** When `login_required`, the sentence has to say an account or login is needed. */
+  outcome_reason?: OutcomeReason;
 }
 
 function claimsABug(text: string): boolean {
@@ -381,6 +433,7 @@ export function verdictContradicts(draft: string, facts: VerdictFacts): boolean 
   if (facts.outcome !== 'bugs_found' && claimsABug(text)) return true;
   if ((facts.outcome === 'inconclusive' || facts.outcome === 'could_not_test')
     && !/our test couldn'?t complete/i.test(text)) return true;
+  if (facts.outcome_reason === 'login_required' && !/\b(account|log\s?in|sign\s?in|login)\b/i.test(text)) return true;
   return false;
 }
 

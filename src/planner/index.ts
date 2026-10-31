@@ -20,6 +20,8 @@ import { ensureFaultSurfaceFlows } from './faults.js';
 import { applyFormsSearchCtaFocus } from './focus.js';
 import { reconcileModelFlows } from './inventory.js';
 import { salvageModelFlows } from './salvage.js';
+import { buildAuthNegativeFlows, isAuthNegativeFlowId } from './authNegative.js';
+import { dedupePlannedFlows } from './dedupe.js';
 import type { PlanFocus } from '../depth.js';
 
 export interface PlannerOptions {
@@ -99,13 +101,17 @@ How to think:
   3. Each flow must be a realistic anonymous-visitor path using ONLY controls the crawl actually saw.
 
 Hard rules:
-  - Do NOT invent search boxes, menus, buttons, forms, or pages the crawl did not show.
+  - Plan ONLY against pages and controls in the crawl. startUrl must be one of the visited page URLs.
+  - Do NOT invent search boxes, menus, buttons, forms, pages, or journeys the crawl did not show. "View pricing" is not a flow unless that control and page were crawled.
+  - Do NOT click a control that leaves the site. OAuth and social buttons ("Continue with Google", "Sign in with Apple") are out of scope.
+  - Do NOT repeat the same control label on the same page in two flows.
   - Do NOT assert exact document titles. Titles vary and are not user-critical.
   - Prefer visible labels from the crawl ("Apply now", "Check eligibility") over CSS selectors.
-  - Steps must be executable by a Playwright agent with no human, OTP, email, or password.
+  - Steps must be executable by a Playwright agent with no human, OTP, email inbox, or real password.
   - One goal per flow. Do not duplicate the same journey with different wording.
   - Prefer 4–7 concrete steps. Skip "look at the page" filler.
   - severityIfFails = critical only if a real user cannot complete a core job (apply, pay, submit, checkout). Visual polish is minor.
+  - Do NOT emit kind "auth_required". The engine adds sign-in checks itself. If every crawled page is an auth wall, return "flows": [].
 
 Each flow has the shape:
   {
@@ -155,9 +161,9 @@ ${siteMap.pages.map(p => `
 
 Per-call constraints:
   - Produce AT MOST ${maxFlows} flows total. Fill the quota with executable public journeys first.
-  - Every step must name a control or content that appears in the crawl above.
+  - Every step must name a control or content that appears in the crawl above. If you cannot, return no flows.
   - ${includeAuth
-      ? 'You MAY add at most one kind="auth_required" flow that reaches a login/OTP wall and then stops. Do not invent credentials. The runner will skip executing it.'
+      ? 'Do NOT add kind="auth_required" flows and do NOT invent credentials. Sign-in, sign-up, and password-reset checks are added by the engine from crawled password fields. If the crawl has no public control, return "flows": [].'
       : 'Do NOT include login, sign-in, sign-up, register, OTP, password-reset, or any flow that needs an account. Skip auth-gated pages. Fill the plan with public journeys only.'}
   - If a crawled page lists a public form under "forms:", the engine reserves one flow that starts on that page and submits that form when the flow budget is at least 1, even if every other flow is a shopping journey. Prefer a POST contact, help, support, or feedback form over a search box. Use only the scraped fields and submit label. Do not invent a form URL or a field the crawl did not list. A flow that merely says "submit" on that page does not replace the reserved one.
   - Scraped "controls:" are real buttons and links. The engine also keeps grounded flows for an enabled button, a link whose target was not crawled, and a disabled button when the budget allows. Do not invent a control that is not listed.
@@ -181,7 +187,7 @@ Reply with JSON:
       schema: LoosePlanSchema,
     });
     const salvaged = salvageModelFlows(result.flows);
-    flows = dedupeFlowIds(salvaged.flows);
+    flows = dedupeFlowIds(salvaged.flows).filter(flow => !isAuthNegativeFlowId(flow.id));
     modelNotes = typeof result.notes === 'string' ? result.notes : undefined;
     const rawCount = Array.isArray(result.flows)
       ? result.flows.length
@@ -279,8 +285,11 @@ function groundFlows(
   const focused = focus === 'forms-search-cta'
     ? applyFormsSearchCtaFocus(faults.flows, siteMap, maxFlows)
     : undefined;
+  const budgeted = focused ? focused.flows : faults.flows;
+  const auth = buildAuthNegativeFlows(siteMap);
+  const deduped = dedupePlannedFlows([...budgeted, ...auth.flows], siteMap);
   const added = focused
-    ? faults.added.filter(label => focused.flows.some(flow =>
+    ? faults.added.filter(label => deduped.flows.some(flow =>
       flow.steps.some(step => step.action.toLowerCase().includes(label.toLowerCase())),
     ))
     : faults.added;
@@ -290,8 +299,12 @@ function groundFlows(
       ? `Added fault-surface flows for controls the crawl saw (${added.join(', ')}).`
       : '',
     focused?.note || '',
+    auth.note || '',
+    deduped.dropped.length
+      ? `Dropped duplicate or off-site flows (${deduped.dropped.join(', ')}).`
+      : '',
   ].filter(Boolean).join(' ') || undefined;
-  return { flows: focused ? focused.flows : faults.flows, note };
+  return { flows: deduped.flows, note };
 }
 
 function dedupeFlowIds(flows: TestFlow[]): TestFlow[] {

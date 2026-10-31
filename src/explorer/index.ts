@@ -29,7 +29,7 @@
  *   - It does not click destructive buttons. The visit is read-only.
  */
 
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, type APIRequestContext, type Browser, type Page } from 'playwright';
 import { basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -49,17 +49,23 @@ import type { SiteMap, SiteMapControl, SiteMapForm, SiteMapFormInput, SiteMapPag
 import { type EventBus, noopBus } from '../events.js';
 import { installPageNameHelper } from '../runner/locate.js';
 import {
+  AUTH_LINK_BUDGET,
   canonicalPageUrl,
   crawledPageUrl,
   enqueueLinks,
   FORM_SURFACE_PATH_SOURCE,
   FORM_SURFACE_TEXT_SOURCE,
   isFormSurfaceLink,
+  isSameCrawlSite,
   linksOnCrawlSite,
   looksLikeAuthUrl,
   pickNextCrawlUrl,
   rememberVisited,
+  sameCrawlPage,
+  seedCrawlQueue,
   selectOutboundLinks,
+  urlsFromRobots,
+  urlsFromSitemap,
   wasVisited,
   type CrawlQueueItem,
   type DiscoveredLink,
@@ -98,7 +104,7 @@ export async function explore(
 
   const visited = new Set<string>();
   const start = canonicalPageUrl(startUrl);
-  const queue: CrawlQueueItem[] = [{ url: start, surface: isFormSurfaceLink({ url: start }) }];
+  const queue: CrawlQueueItem[] = seedCrawlQueue(startUrl);
   const pages: SiteMapPage[] = [];
   const failures: { url: string; reason: string }[] = [];
   const warnings: string[] = [];
@@ -128,6 +134,18 @@ export async function explore(
     });
     await installPageNameHelper(context);
 
+    // sitemap.xml and robots.txt are optional. A miss is not a failed page.
+    // Seeds stay inside the page cap; auth URLs they name share AUTH_LINK_BUDGET.
+    const listed = await listedSiteUrls(context.request, startUrl, maxPages);
+    const room = Math.max(0, maxPages - queue.length);
+    authUrlsQueued = enqueueLinks(
+      queue,
+      visited,
+      listed.slice(0, room).map(url => ({ url })),
+      authUrlsQueued,
+      AUTH_LINK_BUDGET,
+    );
+
     while (queue.length > 0 && pages.length < maxPages){
 
       const index = pickNextCrawlUrl(queue, {
@@ -147,6 +165,11 @@ export async function explore(
         await page.goto(requestedUrl, { waitUntil: 'domcontentloaded', timeout });
         const url = crawledPageUrl(requestedUrl, page.url(), startUrl);
         rememberVisited(visited, url);
+        if (pages.some(existing => sameCrawlPage(existing.url, url))) {
+          // A redirect landed on a page already recorded (root → /?mode=signin).
+          // Do not spend another page slot on it.
+          continue;
+        }
 
         // SPAs (CRA, Next dev, Vite) often keep a websocket open for HMR so
         // networkidle never settles. We give it a brief shot, then fall back
@@ -207,6 +230,9 @@ export async function explore(
         const forms = skeleton.forms.filter(form => form.action || form.fields.length > 0 || form.submitLabel);
         const controls = skeleton.controls.filter(control => control.label);
         const outbound = selectOutboundLinks(linksOnCrawlSite(skeleton.links, startUrl));
+        // Password field or auth URL is decisive. The model flag is only a
+        // secondary signal when those two are absent.
+        const authGated = skeletonHasPassword(skeleton) || looksLikeAuthUrl(url) || summary.authGated;
 
         const sm: SiteMapPage = {
           url,
@@ -217,7 +243,7 @@ export async function explore(
           ...(forms.length ? { forms } : {}),
           ...(skeleton.inputs.length ? { inputs: skeleton.inputs } : {}),
           ...(controls.length ? { controls } : {}),
-          authGated: summary.authGated,
+          authGated,
           ...(screenshotPath ? { screenshotPath } : {}),
         };
 
@@ -236,13 +262,10 @@ export async function explore(
           },
         });
 
-        // Auth walls eat crawl budget and produce login-only test plans.
-        // Cap obvious auth URLs at one visit so the planner still knows a
-        // login surface exists. Form/help links stay in the queue and are
-        // pulled forward while the surface reserve is unfilled.
-        if (!sm.authGated){
-          authUrlsQueued = enqueueLinks(queue, visited, outbound, authUrlsQueued);
-        }
+        // Keep following links from an auth wall. Auth URLs have their own
+        // budget so a sign-in page can still reach signup and forgot-password
+        // without filling the whole crawl with account screens.
+        authUrlsQueued = enqueueLinks(queue, visited, outbound, authUrlsQueued, AUTH_LINK_BUDGET);
 
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -298,6 +321,75 @@ export async function explore(
 
 }
 
+/**
+ * Same-origin URLs published in robots.txt and sitemap.xml. Missing files
+ * are ignored. Nested sitemap indexes are followed one level.
+ */
+async function listedSiteUrls(request: APIRequestContext, startUrl: string, cap: number): Promise<string[]> {
+  if (cap < 1) return [];
+  let origin: string;
+  try { origin = new URL(startUrl).origin; }
+  catch { return []; }
+
+  const found: string[] = [];
+  const push = (value: string) => {
+    if (found.length >= cap) return;
+    let absolute: string;
+    try { absolute = new URL(value, origin).href; }
+    catch { return; }
+    if (!isSameCrawlSite(absolute, startUrl)) return;
+    const canonical = canonicalPageUrl(absolute);
+    if (found.some(existing => sameCrawlPage(existing, canonical))) return;
+    found.push(canonical);
+  };
+
+  const robotsText = await readDiscoveryText(request, `${origin}/robots.txt`);
+  const robotUrls = robotsText ? urlsFromRobots(robotsText, startUrl) : [];
+  for (const url of robotUrls) {
+    if (!/sitemap/i.test(url)) push(url);
+  }
+
+  const sitemapTargets = [`${origin}/sitemap.xml`, ...robotUrls.filter(url => /sitemap/i.test(url))];
+  const seenSitemaps = new Set<string>();
+  for (const target of sitemapTargets) {
+    if (seenSitemaps.has(target) || found.length >= cap) continue;
+    seenSitemaps.add(target);
+    const xml = await readDiscoveryText(request, target);
+    if (!xml) continue;
+    for (const loc of urlsFromSitemap(xml)) {
+      if (found.length >= cap) break;
+      if (/sitemap[^/]*\.xml(?:\?|$)/i.test(loc) && !seenSitemaps.has(loc)) {
+        seenSitemaps.add(loc);
+        const nested = await readDiscoveryText(request, loc);
+        if (nested) for (const inner of urlsFromSitemap(nested)) push(inner);
+      } else {
+        push(loc);
+      }
+    }
+  }
+  return found;
+}
+
+async function readDiscoveryText(request: APIRequestContext, url: string): Promise<string | undefined> {
+  try {
+    const response = await request.get(url, { timeout: 8_000, failOnStatusCode: false });
+    if (!response.ok()) return undefined;
+    const body = await response.text();
+    if (!body || body.length > 1_000_000) return undefined;
+    return body;
+  } catch {
+    return undefined;
+  }
+}
+
+function skeletonHasPassword(skeleton: PageSkeleton): boolean {
+  if (skeleton.inputs.some(input => (input.type || '').toLowerCase() === 'password')) return true;
+  return skeleton.forms.some(form =>
+    (form.inputs || []).some(input => (input.type || '').toLowerCase() === 'password')
+    || form.fields.some(field => field.toLowerCase() === 'password'),
+  );
+}
+
 /* ── Page skeleton scraping ───────────────────────────────────────────── */
 
 interface PageSkeleton {
@@ -333,12 +425,21 @@ async function scrapePageSkeleton(page: Page): Promise<PageSkeleton> {
 
     const pathRe = new RegExp(pathSource, 'i');
     const textRe = new RegExp(textSource, 'i');
-    const anchors = Array.from(document.querySelectorAll('a[href]'))
-      .map(a => ({
+    function absolute(href: string): string {
+      try { return new URL(href, document.baseURI).href; }
+      catch { return ''; }
+    }
+
+    const anchors = [
+      ...Array.from(document.querySelectorAll('a[href]')).map(a => ({
         url: (a as HTMLAnchorElement).href,
         text: txt(a).slice(0, 80),
-      }))
-      .filter(link => link.url);
+      })),
+      ...Array.from(document.querySelectorAll('[role="link"], [data-href]')).map(el => ({
+        url: absolute(el.getAttribute('href') || el.getAttribute('data-href') || ''),
+        text: txt(el).slice(0, 80),
+      })),
+    ].filter(link => link.url);
     const surfaceUrls = new Set<string>();
     const ordinaryUrls = new Set<string>();
     for (const link of anchors) {

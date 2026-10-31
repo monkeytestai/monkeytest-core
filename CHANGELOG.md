@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0-beta.1] — 2026-10-31
+
+### Added
+
+- Auth-negative checks for a crawled password field. Reserved flow ids `auth-neg-*`, kind `edge_case`. They do not use the planner flow budget and they are not removed when a model flow names a control the page does not have. The cases are empty submit, invalid email, one wrong-password attempt per run (`monkeytest+<rand>@example.invalid`), password visibility (a missing toggle is info, not a bug), a forgot-password link, and a sign-up link. Sign-up and reset forms are not submitted. Captcha, phone, and payment fields are not handled. The runner fills the scripted values and uses at most one model fallback step per flow.
+- Login-only runs set `outcome_reason` to `login_required` when `public_screens` is `0` and at least one page was crawled, including when `outcome` is `clean` or `bugs_found`. `outcome_detail` says deeper journeys need an account. `public_screens` is the number of crawled pages that are not auth-gated.
+- `ENGINE_VERSION` on the package entry, read from `package.json`. `RunResult.engine_version` is that string (for example `0.7.0-beta.1`).
+- Reserved, unset signup fields for a later inbox provider: `signup_attempted?`, `signup_verified?`, `signup_status?` (`verified` | `unverified` | `not_tested` | `blocked`), `signup_reason?` (`no_inbox` | `captcha` | `phone` | `payment` | `timeout` | `cap_reached` | `no_signup_form`).
+
+### Fixed
+
+- The crawl follows links on an auth-gated page. Auth URLs have a separate budget of 3, so `/?mode=signup` and `/forgot-password` are visited. Auth is detected from a password field or a path/query token (`login`, `signin`, `signup`, `register`, `forgot`, `reset`, `otp`, `auth`, including `?mode=` and hyphen or underscore forms). The model flag is only a secondary signal.
+- The crawl seeds the site root, the start URL without its query string, and same-origin URLs from `sitemap.xml` and `robots.txt` when those files exist, within the page cap. `[role=link]` and same-origin `[data-href]` are followed.
+- Flows that click the same control on the same page collapse to one. Clicks that leave the site, including "Continue with Google", are dropped. The planner is told to use only crawled pages and controls.
+- A login-only site no longer ends `inconclusive` just because the only model journey was `auth_required`. The auth checks above decide `clean` or `bugs_found`.
+
+### Changed
+
+- npm prerelease tags `v*.*.*-beta.*` publish under the dist-tag `next`. Stable tags stay on `latest`.
+
 ## [0.6.1] — 2026-10-31
 
 ### Fixed
@@ -214,6 +234,7 @@ First public npm release.
 - `EventBus` for live activity streams
 - OpenAI and Gemini LLM backends
 
+[0.7.0-beta.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.7.0-beta.1
 [0.6.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.6.1
 [0.6.0]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.6.0
 [0.5.1]: https://github.com/monkeytestai/monkeytester/releases/tag/v0.5.1

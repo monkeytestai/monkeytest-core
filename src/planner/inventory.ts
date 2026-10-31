@@ -33,8 +33,16 @@ export function reconcileModelFlows(flows: TestFlow[], siteMap: SiteMap): Reconc
 
   for (const flow of flows) {
     const page = siteMap.pages.find(item => sameCrawlPage(item.url, flow.startUrl));
-    const fields = page ? fieldsOf(page) : [];
-    if (!page || fields.length === 0) {
+    if (!page) {
+      dropped.push({
+        id: flow.id,
+        name: flow.name,
+        reason: 'start URL was not crawled',
+      });
+      continue;
+    }
+    const fields = fieldsOf(page);
+    if (fields.length === 0) {
       kept.push(flow);
       continue;
     }

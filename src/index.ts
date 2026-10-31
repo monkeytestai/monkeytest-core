@@ -63,11 +63,14 @@ export {
   alignVerdict,
   attachRunOutcome,
   classifyRunFlows,
+  countPublicScreens,
   deriveRunOutcome,
   reasonForText,
   verdictContradicts,
 } from './outcome.js';
 export type { DerivedOutcome, OutcomeContext, VerdictFacts } from './outcome.js';
+
+export { ENGINE_VERSION } from './version.js';
 
 export {
   DEPTH_PRESETS,
@@ -129,6 +132,9 @@ export type {
   FlowStatus,
   RunOutcome,
   OutcomeReason,
+  SignupStatus,
+  SignupReason,
+  AuthCheck,
   RunResult,
   BugReport,
   BugEvidence,

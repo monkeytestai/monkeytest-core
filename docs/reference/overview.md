@@ -47,7 +47,7 @@ const { siteMap, plan, run } = await monkey.executeAndTriage(url, opts);
 | ----- | ------------- | ----- |
 | `siteMap` | `{ startUrl, siteType, summary, pages[], pendingUrls[], failedUrls[] }` | Always returned, even if no pages succeeded. |
 | `plan` | `{ startUrl, siteType, flows: TestFlow[], notes? }` | `flows` may be empty if the planner failed; check `notes`. |
-| `run` | `{ outcome, outcome_reason?, outcome_detail?, flows: FlowResult[], bugs: BugReport[], stats }` | `outcome` is `bugs_found` \| `clean` \| `inconclusive` \| `could_not_test`. `bugs` are deduplicated confirmed site bugs. |
+| `run` | `{ outcome, outcome_reason?, outcome_detail?, public_screens?, engine_version?, signup_attempted?, signup_verified?, signup_status?, signup_reason?, flows: FlowResult[], bugs: BugReport[], stats }` | `outcome` is `bugs_found` \| `clean` \| `inconclusive` \| `could_not_test`. `bugs` are deduplicated confirmed site bugs. Signup fields are reserved and unset in 0.7.0-beta.1. |
 
 ## Type tree (high level)
 
@@ -64,13 +64,19 @@ RunResult
  ├─ outcome                           bugs_found | clean | inconclusive | could_not_test
  ├─ outcome_reason?                   login_required | site_unreachable | automation_error | all_flows_skipped | …
  ├─ outcome_detail?                   sentence that matches bugs.length, plus a next step
+ ├─ public_screens?                   number of crawled pages that are not auth-gated
+ ├─ engine_version?                   string, for example "0.7.0-beta.1"
+ ├─ signup_attempted?                 boolean, unset in 0.7.0-beta.1
+ ├─ signup_verified?                  boolean, unset in 0.7.0-beta.1
+ ├─ signup_status?                    verified | unverified | not_tested | blocked, unset in 0.7.0-beta.1
+ ├─ signup_reason?                    no_inbox | captcha | phone | payment | timeout | cap_reached | no_signup_form
  ├─ flows: FlowResult[]               { flowId, status, outcome_reason?, outcome_detail?, durationMs, videoPath?, steps: StepResult[] }
  │    └─ steps: StepResult[]          { index, action, status, observation, screenshotPath?, consoleErrors[], networkFailures[] }
  ├─ bugs: BugReport[]                 { id, fingerprint, title, severity, evidence, impact?, page_url?, step_index?, flow_id?, element? }
  └─ stats                             { flowsTotal, flowsPassed, flowsFailed, flowsBlocked, flowsInconclusive?, stepsTotal, stepsPassed, stepsFailed, bugsCritical, bugsMajor, bugsMinor }
 ```
 
-`status` on a flow is `passed`, `failed`, `blocked`, `error`, or `inconclusive`. `inconclusive` means every planned step was skipped, or the only failures belonged to the runner. `login_required` is set only when a password field or login form was actually seen.
+`status` on a flow is `passed`, `failed`, `blocked`, `error`, or `inconclusive`. `inconclusive` means every planned step was skipped, or the only failures belonged to the runner. `login_required` is set when a password field or login form was seen, and also on `clean` or `bugs_found` when `public_screens` is `0` (every crawled page was auth-gated). There is no second reason code for that case. `ENGINE_VERSION` is the `package.json` version.
 
 Import `AUTOMATION_FAULT_SIGNATURES`, `isOwnAutomationBug`, and `matchesClientSoftExploratory` to share the "not a confirmed bug" rule with mtaiserver. `isOwnAutomationBug` is a superset of mtaiclient `src/utils/confirmedBugs.js`. HTTP 5xx, uncaught page errors, disabled controls, and document HTTP 404 stay bugs.
 

@@ -26,6 +26,7 @@ export async function applyPlannerVerdict(
     bugCount: run.bugs.length,
     outcome: run.outcome,
     outcome_detail: run.outcome_detail,
+    outcome_reason: run.outcome_reason,
   };
   try {
     const raw = await llm.generateJSON({
@@ -40,6 +41,7 @@ Rules:
   - If confirmed bugs is greater than 0, describe the bug. Do not say the site worked smoothly, and do not say there were no bugs.
   - If confirmed bugs is 0, do not say there is a major bug, a critical bug, or a confirmed bug, and do not say "check right away".
   - If outcome is inconclusive or could_not_test, the sentence must include "Our test couldn't complete" and must blame the test, not the site.
+  - If reason is login_required, say that deeper journeys need an account.
   - One or two sentences. No score, no grade.
 
 Fallback wording, if you are unsure: ${run.outcome_detail}`,
